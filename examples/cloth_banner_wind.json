@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "operation": "build",
+  "preset_id": "cloth_banner_wind",
+  "target_object": "Cloth_Banner",
+  "collider_object": "Pillar_Collider",
+  "input_blend": "./input/cloth_scene.blend",
+  "output_blend": "./output/cloth_baked.blend",
+  "bake": true,
+  "verify_cold_reopen": true,
+  "export_format": "NONE",
+  "parameters": {
+    "substeps": 5,
+    "frame_start": 1,
+    "frame_end": 120,
+    "stiffness": 0.72,
+    "drag": 0.12,
+    "wind_vector": [4.5, 1.2, 0.4],
+    "wind_turbulence": 2.2,
+    "contact_thickness": 0.04,
+    "ground_z": 0.0
+  }
+}

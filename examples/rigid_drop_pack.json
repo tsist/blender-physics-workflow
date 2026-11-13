@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "operation": "build",
+  "preset_id": "rigid_drop_pack",
+  "target_object": "Rigid_Boxes",
+  "collider_object": "Ramp_Collider",
+  "input_blend": "./input/rigid_scene.blend",
+  "output_blend": "./output/rigid_baked.blend",
+  "bake": true,
+  "verify_cold_reopen": true,
+  "export_format": "NONE",
+  "parameters": {
+    "substeps": 4,
+    "frame_start": 1,
+    "frame_end": 120,
+    "restitution": 0.35,
+    "friction": 0.45,
+    "sleep_velocity": 0.08,
+    "contact_thickness": 0.08,
+    "particle_radius": 0.12,
+    "ground_z": 0.0
+  }
+}

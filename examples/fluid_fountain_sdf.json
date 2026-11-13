@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "operation": "build",
+  "preset_id": "fluid_fountain_sdf",
+  "target_object": "Fountain_Emitter",
+  "collider_object": "Dome_Deflector",
+  "input_blend": "./input/fluid_scene.blend",
+  "output_blend": "./output/fluid_baked.blend",
+  "bake": true,
+  "verify_cold_reopen": true,
+  "export_format": "ALEMBIC",
+  "export_path": "./output/fluid_fountain.abc",
+  "parameters": {
+    "substeps": 3,
+    "frame_start": 1,
+    "frame_end": 120,
+    "emit_rate": 16,
+    "emit_speed": 1.85,
+    "particle_radius": 0.15,
+    "sdf_voxel_size": 0.07,
+    "contact_thickness": 0.15,
+    "ground_z": 0.0
+  }
+}
