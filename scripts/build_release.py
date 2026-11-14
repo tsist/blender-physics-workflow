@@ -34,8 +34,10 @@ def build(out: Path) -> dict:
     license_data = safe_file(ROOT, "LICENSE").read_bytes()
 
     addon_entries = [(n[len(ADDON_DIR):], b) for n, b in source if n.startswith(ADDON_DIR)]
+    addon_entries.append(("LICENSE", license_data))
     skill_entries = [(n[len("skills/"):], b) for n, b in source if n.startswith("skills/blender-physics-workflow/")]
     skill_entries.append(("LICENSE", license_data))
+    skill_entries.append(("blender-physics-workflow/LICENSE", license_data))
 
     bundles = {
         f"{pub['repository']}-{pub['release']}-source.zip": source,

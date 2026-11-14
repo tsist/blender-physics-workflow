@@ -24,12 +24,13 @@ if bpy is not None:
     from . import inspection as pnw_inspection
     from . import subgroups as pnw_subgroups
     from . import ui as pnw_ui
+    from . import prototypes as pnw_prototypes
 
 
 bl_info = {
     "name": "Physics Nodes Workbench",
     "author": "Blender AI Pipeline",
-    "version": (0, 1, 0),
+    "version": (0, 8, 1),
     "blender": (5, 2, 0),
     "location": "View3D > UI > Physics Nodes",
     "description": "Modular Geometry Nodes Physics Node Library, Workbench, Disk Cache & CLI",
@@ -99,6 +100,9 @@ def execute_request(raw_request: dict[str, Any]) -> dict[str, Any]:
             mod = obj.modifiers.get(mod_name)
             if mod is None or mod.type != "NODES" or mod.node_group is None:
                 raise ValueError(f"Physics modifier '{mod_name}' not found on '{obj.name}'")
+            # UI Bake and CLI Bake must solve the values they sign. Apply only
+            # modifier inputs; authored nodes and deliberately absent links stay.
+            pnw_core.build_or_update_workflow(obj, {**req, "operation": "parameters"})
             wrapper = mod.node_group
             core_node = wrapper.nodes.get("PNW_CoreNode") or next(
                 (n for n in wrapper.nodes if n.bl_idname == "GeometryNodeGroup"), None
@@ -140,6 +144,9 @@ def execute_request(raw_request: dict[str, Any]) -> dict[str, Any]:
                 sleep_velocity=p["sleep_velocity"],
                 params_hash=req["parameters_hash"],
             )
+
+        elif op == "prepare_instances":
+            result["prepared_instances"] = pnw_prototypes.prepare_instances(obj, req)
 
         elif op == "export":
             result["export"] = pnw_export.export_workflow_result(obj, req)

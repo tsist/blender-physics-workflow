@@ -9,7 +9,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from typing import Any
+from . import capabilities
 
 CONTRACT_ID = "BLENDER_PHYSICS_WORKFLOW_CONTRACT_V1"
 SCHEMA_VERSION = "1.0"
@@ -23,6 +25,7 @@ OPERATIONS = (
     "inspect",
     "adopt",
     "export",
+    "prepare_instances",
 )
 
 DOMAINS = ("rigid_scatter", "cloth_rope", "fluid_emission")
@@ -101,6 +104,40 @@ PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
             "buoyancy": 0.0,
         },
     },
+    "rigid_box_tipping": {
+        "domain": "rigid_scatter",
+        "title": "Rigid Box Floor Tipping (Planar)",
+        "description": "Isolated planar box-on-fixed-floor test: one real support contact, persistent angular velocity, normal/tangent impulses, true-size cube instancing. No box-box or arbitrary mesh collision.",
+        "defaults": {
+            "substeps": 8,
+            "seed": 211,
+            "frame_start": 1,
+            "frame_end": 120,
+            "gravity": [0.0, 0.0, -9.81],
+            "drag": 0.0,
+            "restitution": 0.0,
+            "friction": 0.45,
+            "sleep_velocity": 0.0,
+            "contact_thickness": 0.001,
+            "particle_radius": 0.12,
+            "ground_z": 0.0,
+            "scatter_count": 0,
+            "angular_spin": 0.0,
+            "stiffness": 0.0,
+            "anchor_pos": [0.0, 0.0, 0.0],
+            "rest_length": 0.0,
+            "wind_vector": [0.0, 0.0, 0.0],
+            "wind_turbulence": 0.0,
+            "emit_rate": 0,
+            "emit_speed": 0.0,
+            "emit_end_frame": 1,
+            "lifetime": 250,
+            "sdf_voxel_size": 0.08,
+            "buoyancy": 0.0,
+            "box_half_extents": [0.2, 0.3, 1.0],
+            "box_initial_tilt": 0.3,
+        },
+    },
     "cloth_banner_wind": {
         "domain": "cloth_rope",
         "title": "Cloth Banner & Wind Field",
@@ -163,6 +200,47 @@ PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
             "lifetime": 250,
             "sdf_voxel_size": 0.08,
             "buoyancy": 0.0,
+        },
+    },
+    "softbody_elastic_shell": {
+        "domain": "cloth_rope",
+        "title": "Softbody Elastic Shell (Closed Surface)",
+        "description": "Approximate closed-surface elastic softbody for a local, closed triangulated manifold: native XPBD edge-length plus cross-edge bending, gravity, wind and contacts. Surface-only elastic shell, not a tetrahedral solid, incompressible body, or pressure/volume-preserving solver.",
+        "defaults": {
+            "substeps": 8,
+            "seed": 909,
+            "frame_start": 1,
+            "frame_end": 120,
+            "gravity": [0.0, 0.0, -9.81],
+            "drag": 0.10,
+            "restitution": 0.55,
+            "friction": 0.20,
+            "sleep_velocity": 0.01,
+            "contact_thickness": 0.12,
+            "particle_radius": 0.03,
+            "ground_z": 0.0,
+            "scatter_count": 0,
+            "angular_spin": 0.0,
+            "stiffness": 0.55,
+            "anchor_pos": [0.0, 0.0, 0.0],
+            "rest_length": 0.0,
+            "wind_vector": [4.0, 0.0, 0.0],
+            "wind_turbulence": 0.30,
+            "emit_rate": 0,
+            "emit_speed": 0.0,
+            "emit_end_frame": 1,
+            "lifetime": 250,
+            "sdf_voxel_size": 0.08,
+            "buoyancy": 0.0,
+            "instance_normalize": True,
+            "bending": True,
+            "bend_softness": 0.12,
+            "tearing": False,
+            "tear_threshold": 1.2,
+            "curve_resolution": 64,
+            "contact_iterations": 3,
+            "constraint_iterations": 24,
+            "activation_frame": 0,
         },
     },
     "fluid_fountain_sdf": {
@@ -232,6 +310,18 @@ PRESET_DEFINITIONS: dict[str, dict[str, Any]] = {
 }
 
 
+for _preset in PRESET_DEFINITIONS.values():
+    _preset["defaults"].setdefault("activation_frame", 0)
+    _preset["defaults"].setdefault("instance_normalize", True)
+    _preset["defaults"].setdefault("bending", False)
+    _preset["defaults"].setdefault("bend_softness", 0.1)
+    _preset["defaults"].setdefault("tearing", False)
+    _preset["defaults"].setdefault("tear_threshold", 1.2)
+    _preset["defaults"].setdefault("curve_resolution", 64)
+    _preset["defaults"].setdefault("contact_iterations", 3)
+    _preset["defaults"].setdefault("constraint_iterations", 12)
+
+
 class PhysicsContractError(ValueError):
     """Raised when a workflow request violates the contract."""
 
@@ -245,36 +335,59 @@ def _require_vec3(value: Any, name: str) -> list[float]:
     if not isinstance(value, (list, tuple)) or len(value) != 3:
         raise PhysicsContractError("VALIDATION_ERROR", f"{name} must be a 3-element float list")
     try:
-        return [float(value[0]), float(value[1]), float(value[2])]
-    except (TypeError, ValueError) as exc:
+        parsed = [float(v) for v in value]
+        if not all(math.isfinite(v) for v in parsed):
+            raise ValueError("Non-finite vector")
+        return parsed
+    except (TypeError, ValueError, OverflowError) as exc:
         raise PhysicsContractError("VALIDATION_ERROR", f"{name} contains non-numeric value") from exc
 
 
 def _require_range(value: Any, name: str, lo: float, hi: float, is_int: bool = False) -> int | float:
     try:
-        parsed = int(value) if is_int else float(value)
-    except (TypeError, ValueError) as exc:
+        number = float(value)
+        if not math.isfinite(number) or (is_int and not number.is_integer()):
+            raise ValueError("Expected finite number (integer where required)")
+        parsed = int(number) if is_int else number
+    except (TypeError, ValueError, OverflowError) as exc:
         raise PhysicsContractError("VALIDATION_ERROR", f"{name} must be numeric") from exc
     if parsed < lo or parsed > hi:
         raise PhysicsContractError("VALIDATION_ERROR", f"{name}={parsed} out of allowed bounds [{lo}, {hi}]")
     return parsed
 
 
-def compute_parameters_hash(params: dict[str, Any], bridge_mode: str, preset_id: str, collider_object: str | None) -> str:
+def _require_strict_int(value: Any, name: str, lo: int, hi: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise PhysicsContractError(
+            "VALIDATION_ERROR",
+            f"{name} must be an integer in [{lo}, {hi}]; booleans, fractions and non-finite values are rejected",
+        )
+    if value < lo or value > hi:
+        raise PhysicsContractError("VALIDATION_ERROR", f"{name}={value} out of allowed bounds [{lo}, {hi}]")
+    return value
+
+
+def compute_parameters_hash(params: dict[str, Any], bridge_mode: str, preset_id: str, collider_object: str | None,
+                            collider_collection: str | None = None, instance_collection: str | None = None) -> str:
     payload = {
         "schema_version": SCHEMA_VERSION,
         "preset_id": preset_id,
         "bridge_mode": bridge_mode,
         "collider_object": collider_object or "",
+        "collider_collection": collider_collection or "",
+        "instance_collection": instance_collection or "",
         "parameters": params,
     }
-    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, allow_nan=False).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
 def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise PhysicsContractError("VALIDATION_ERROR", "Request payload must be a JSON object")
+    for flag in ("bake", "force_rebuild", "verify_cold_reopen"):
+        if flag in raw and not isinstance(raw[flag], bool):
+            raise PhysicsContractError("VALIDATION_ERROR", f"{flag} must be a JSON boolean")
 
     schema_version = str(raw.get("schema_version", SCHEMA_VERSION))
     if schema_version != SCHEMA_VERSION:
@@ -307,7 +420,10 @@ def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
         raise PhysicsContractError("VALIDATION_ERROR", f"Unsupported export_format: {export_format}")
 
     params = copy.deepcopy(preset["defaults"])
-    user_params = raw.get("parameters") or {}
+    params.setdefault("curve_resolution", 64)
+    user_params = raw.get("parameters", {})
+    if user_params is None:
+        user_params = {}
     if not isinstance(user_params, dict):
         raise PhysicsContractError("VALIDATION_ERROR", "parameters must be a JSON object")
     for k, v in user_params.items():
@@ -321,10 +437,31 @@ def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
             params[top_k] = raw[top_k]
 
     params["substeps"] = int(_require_range(params["substeps"], "substeps", 1, 8, is_int=True))
+    for flag in ("instance_normalize", "bending", "tearing"):
+        if not isinstance(params[flag], bool):
+            raise PhysicsContractError("VALIDATION_ERROR", f"{flag} must be a JSON boolean")
+    params["bend_softness"] = float(_require_range(params["bend_softness"], "bend_softness", 0.0, 1.0))
+    params["tear_threshold"] = float(_require_range(params["tear_threshold"], "tear_threshold", 1.0, 100.0))
+    if domain != "cloth_rope" and (params["bending"] or params["tearing"]):
+        raise PhysicsContractError("VALIDATION_ERROR", "Bending and tearing require the cloth_rope domain")
+    params["curve_resolution"] = int(_require_range(params["curve_resolution"], "curve_resolution", 2, 50000, is_int=True))
+    params["contact_iterations"] = int(_require_range(params["contact_iterations"], "contact_iterations", 1, 32, is_int=True))
+    params["constraint_iterations"] = int(_require_range(params["constraint_iterations"], "constraint_iterations", 1, 64, is_int=True))
     params["seed"] = int(_require_range(params["seed"], "seed", 0, 2**31 - 1, is_int=True))
     params["frame_start"] = int(_require_range(params["frame_start"], "frame_start", 1, 100000, is_int=True))
     params["frame_end"] = int(_require_range(params["frame_end"], "frame_end", params["frame_start"], 100000, is_int=True))
+    params["activation_frame"] = _require_strict_int(params["activation_frame"], "activation_frame", 0, 100000)
+    if domain != "rigid_scatter" and params["activation_frame"] != 0:
+        raise PhysicsContractError(
+            "VALIDATION_ERROR",
+            "activation_frame requires the rigid_scatter domain; other domains must use 0",
+        )
     params["gravity"] = _require_vec3(params["gravity"], "gravity")
+    if preset_id == "rigid_box_tipping" and params["gravity"][1] != 0.0:
+        raise PhysicsContractError(
+            "VALIDATION_ERROR",
+            "rigid_box_tipping supports XZ-plane motion with Y-axis rotation; gravity Y must be 0",
+        )
     params["wind_vector"] = _require_vec3(params["wind_vector"], "wind_vector")
     params["anchor_pos"] = _require_vec3(params["anchor_pos"], "anchor_pos")
     params["drag"] = float(_require_range(params["drag"], "drag", 0.0, 20.0))
@@ -345,11 +482,32 @@ def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
     params["lifetime"] = int(_require_range(params["lifetime"], "lifetime", 1, 100000, is_int=True))
     params["sdf_voxel_size"] = float(_require_range(params["sdf_voxel_size"], "sdf_voxel_size", 0.01, 2.0))
     params["buoyancy"] = float(_require_range(params["buoyancy"], "buoyancy", -50.0, 50.0))
+    if preset_id == "rigid_box_tipping":
+        half_extents = _require_vec3(params["box_half_extents"], "box_half_extents")
+        if any(value <= 0.0 for value in half_extents):
+            raise PhysicsContractError(
+                "VALIDATION_ERROR",
+                "box_half_extents components must be strictly positive",
+            )
+        params["box_half_extents"] = half_extents
+        params["box_initial_tilt"] = float(_require_range(
+            params["box_initial_tilt"],
+            "box_initial_tilt",
+            -math.pi / 2.0 + 1e-9,
+            math.pi / 2.0 - 1e-9,
+        ))
 
     target_object = str(raw.get("target_object", "")).strip()
     modifier_name = str(raw.get("modifier_name", "PhysicsNodes")).strip() or "PhysicsNodes"
     collider_object = str(raw["collider_object"]).strip() if raw.get("collider_object") else None
+    collider_collection = str(raw["collider_collection"]).strip() if raw.get("collider_collection") else None
     instance_collection = str(raw["instance_collection"]).strip() if raw.get("instance_collection") else None
+
+    if operation == "prepare_instances":
+        if not instance_collection or domain != "rigid_scatter":
+            raise PhysicsContractError("VALIDATION_ERROR", "prepare_instances requires a rigid preset and instance_collection")
+        if raw.get("bake") or export_format != "NONE" or raw.get("verify_cold_reopen"):
+            raise PhysicsContractError("VALIDATION_ERROR", "prepare_instances only prepares inputs; build/bake/export the returned collection in a subsequent request")
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -361,6 +519,7 @@ def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
         "target_object": target_object,
         "modifier_name": modifier_name,
         "collider_object": collider_object,
+        "collider_collection": collider_collection,
         "instance_collection": instance_collection,
         "bake": bool(raw.get("bake", False)),
         "bake_directory": str(raw["bake_directory"]).strip() if raw.get("bake_directory") else None,
@@ -370,7 +529,7 @@ def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
         "export_path": str(raw["export_path"]).strip() if raw.get("export_path") else None,
         "export_frame": int(_require_range(raw.get("export_frame", params["frame_end"]), "export_frame", params["frame_start"], params["frame_end"], is_int=True)),
         "parameters": params,
-        "parameters_hash": compute_parameters_hash(params, bridge_mode, preset_id, collider_object),
+        "parameters_hash": compute_parameters_hash(params, bridge_mode, preset_id, collider_object, collider_collection, instance_collection),
     }
 
 
@@ -382,6 +541,7 @@ def describe_contract() -> dict[str, Any]:
         "domains": list(DOMAINS),
         "bridge_modes": list(BRIDGE_MODES),
         "export_formats": list(EXPORT_FORMATS),
+        "capabilities": capabilities.describe_capabilities(),
         "presets": {
             k: {
                 "domain": v["domain"],
@@ -393,7 +553,10 @@ def describe_contract() -> dict[str, Any]:
         },
         "bounds": {
             "substeps": [1, 8],
-            "windows_bake_parent_max": 247,
             "windows_bake_file_max": 259,
+            "windows_bake_parent": "validated including owned generation suffix before write",
+            "curve_resolution": [2, 50000],
+            "contact_iterations": [1, 32],
+            "constraint_iterations": [1, 64],
         },
     }

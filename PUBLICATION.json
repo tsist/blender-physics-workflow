@@ -1,12 +1,13 @@
 {
   "repository": "blender-physics-workflow",
-  "release": "0.1.0",
-  "addon": "0.1.0",
-  "cli": "0.1.0",
-  "skill": "0.1.0",
+  "release": "0.8.1-dev.1",
+  "addon": "0.8.1-dev.1",
+  "cli": "0.8.1-dev.1",
+  "skill": "0.8.1-dev.1",
+  "release_status": "development_prerelease",
   "blender_baseline": "5.2.1 LTS (build 9e2066aef7ef)",
-  "runtime_identity": "63ef72f9462cde8e02b0e58159a990d8e00e4291d95336548745b78da059221e",
-  "runtime_files": 18,
+  "runtime_identity": "e32fce362263b8b3ec2dfad68d96fd2ce82d7fa5666e7f0e4bcc114b7d02a924",
+  "runtime_files": 38,
   "license": "GPL-3.0-or-later",
   "files": [
     {
@@ -25,14 +26,44 @@
       "bytes": 58
     },
     {
+      "file": "docs/ACTIVATION.md",
+      "sha256": "b454e375b7bcb4e98520a4c5cf41a53b77aafe5ef61701d5408d2765ccbedea1",
+      "bytes": 1904
+    },
+    {
+      "file": "docs/CHANGELOG.md",
+      "sha256": "fbd488c53115423d6e48d1bf86a6eff28f1c200eb801917acaca8d60695efa6a",
+      "bytes": 3136
+    },
+    {
       "file": "docs/CONTRACT.md",
-      "sha256": "7885dd789d64a571ecd29a38a977e3e35a36b9b1b9accc88b0b2926b06d8f767",
-      "bytes": 1647
+      "sha256": "514917340e5c82ad9ef82df0a0fc212931ca3a93433492d6a4b4a264b7ead65d",
+      "bytes": 5591
+    },
+    {
+      "file": "docs/DIAGNOSTICS-VALIDATION.md",
+      "sha256": "742906e252bb06ac6e579266e0104faabd05922fb1e184ecc73ba4962c319e6b",
+      "bytes": 3250
+    },
+    {
+      "file": "docs/EXPORT-DELIVERY.md",
+      "sha256": "47b68b126413f0939e711ff03d769f96c12c5575b7addeb7119747cf1c9987bb",
+      "bytes": 2384
+    },
+    {
+      "file": "docs/PROTOTYPES.md",
+      "sha256": "a2b4c4cdf927d0d3cd9a34ad17ad7dfb68ae7fce8dd95e841832484f104043b1",
+      "bytes": 2149
+    },
+    {
+      "file": "docs/STAGE-VALIDATION.md",
+      "sha256": "162759d2ad575137722124238794c5a7964efe967144f77c49b7f60a6e161043",
+      "bytes": 6797
     },
     {
       "file": "docs/VALIDATION.md",
-      "sha256": "6ad077452120438b1a749a8e8bb7922693027bf8c2b7927515450042fbc67207",
-      "bytes": 1834
+      "sha256": "18efef75de0ff08ed1ac81e49c04a2cf588e36d09f8acbcbbe53a0f5d1a9e0bc",
+      "bytes": 7942
     },
     {
       "file": "examples/cloth_banner_wind.json",
@@ -56,23 +87,23 @@
     },
     {
       "file": "README.md",
-      "sha256": "b38e3ecb945c485b619f2276c26ed001dd549f9d91d20d39cc3c3db45e6eac79",
-      "bytes": 3993
+      "sha256": "e34a9e829fefec38f7f16a4e1b11652edb34155df60343ace220070ae24ce82b",
+      "bytes": 4744
     },
     {
       "file": "README.zh-CN.md",
-      "sha256": "936d7992c3a7735ff4d8f507da7478f52ee6499c659f75c8bb0843e1292a656d",
-      "bytes": 3964
+      "sha256": "08eeaf8ed05b9b958c4e48d93c934502219e1f70f9d6c47470d869eb6a325ad3",
+      "bytes": 4098
     },
     {
       "file": "scripts/build_release.py",
-      "sha256": "57cb027def3715659f2f4564e1d195b28b5839d52e10e21c242c19cff38e52cb",
-      "bytes": 3351
+      "sha256": "d7061390d34db7f86202dedf58fc88f7a14a97639989bd71ff6225dd9571a189",
+      "bytes": 3480
     },
     {
       "file": "scripts/verify_release.py",
-      "sha256": "5a4eb774206752f3424801d6b077555d45c22c6456998f6a0836d320c144b66b",
-      "bytes": 4869
+      "sha256": "fdafd563c333ae0f0ffeffee03bed38e5c9d0bd028dd8a70bfc7d55b4d1f43d0",
+      "bytes": 5372
     },
     {
       "file": "skills/blender-physics-workflow/agents/openai.yaml",
@@ -81,73 +112,408 @@
     },
     {
       "file": "skills/blender-physics-workflow/SKILL.md",
-      "sha256": "057b224260b45d84968617750d2041c1d711f4c2bec4a5d94aa0d597526bb10d",
-      "bytes": 6624
+      "sha256": "ce8c6c9b049753fd932266d7a45180c1ed87b95c93e78662747f892932f250bf",
+      "bytes": 19814
     },
     {
       "file": "skills/manifest.json",
-      "sha256": "f7c096bd1ec75964df191f20fff6e6eda35617e929eee53505e8669720862802",
-      "bytes": 304
+      "sha256": "4c839648a16f0752edd956d243dd391f520adfdfd6e1b1baea097b2e637c078f",
+      "bytes": 334
     },
     {
       "file": "skills/README.md",
-      "sha256": "22cefe5eb3220419d5c80faf21ac242c4a6839be99ef1791fad610e7e0610384",
-      "bytes": 353
+      "sha256": "0219329cb628e8d6214f0776edd79366ceb3fb10f7425a50844bd77778e670bf",
+      "bytes": 827
+    },
+    {
+      "file": "tests/alembic_case_export.py",
+      "sha256": "b10d633a2967d4f79ad4e8fe10078787486393c595cc88cea7426926c1e585d0",
+      "bytes": 8124
+    },
+    {
+      "file": "tests/alembic_case_import.py",
+      "sha256": "cb57f43eb0d713b0e0108af6938fe80084bf28f30bb890e0fe11f96395d60060",
+      "bytes": 7530
+    },
+    {
+      "file": "tests/alembic_volume_negative.py",
+      "sha256": "7283a2c75b056f22e75fbbc260522046f1539ffa23e023a3a34bfce92fa9b425",
+      "bytes": 2672
+    },
+    {
+      "file": "tests/blender/test_contact_velocity_capture.py",
+      "sha256": "a2a9fe64e50bf8a115ef35b7fdaba24ea54af55599c4b261671c5619847e4726",
+      "bytes": 7512
+    },
+    {
+      "file": "tests/blender_animated_collider_bake.py",
+      "sha256": "df557385222b904f75a47d0e86d0d606e2c268beb0a37d9de447106e442c28b3",
+      "bytes": 19745
+    },
+    {
+      "file": "tests/blender_animation_identity_probe.py",
+      "sha256": "4bb32889744887269af6b6c7f630315bcc38a88e1eb473b4e64e9baa1970f549",
+      "bytes": 29548
+    },
+    {
+      "file": "tests/blender_physics_activation_contacts_v07.py",
+      "sha256": "3ba57fe1ca2cbc37a05b96cac6089f50e2aefd81342f7cc9623fd03a711c31b7",
+      "bytes": 1722
+    },
+    {
+      "file": "tests/blender_physics_activation_sweep_verify_v07.py",
+      "sha256": "f2ca9a6d1a3355f90482c546a2ee01f0f61b3e27d053d02669a6cb9e4f0526f2",
+      "bytes": 1355
+    },
+    {
+      "file": "tests/blender_physics_activation_ui_v07.py",
+      "sha256": "2701e9e3cd1bb994f886bcc260d7f72e2d34f1feeff9b5e3b918057bbaabc4fe",
+      "bytes": 3707
+    },
+    {
+      "file": "tests/blender_physics_activation_v07.py",
+      "sha256": "5e37a87d0046da3b98cd04d603dc21569adbf5d2ef7f184446fca0d92b1c9f67",
+      "bytes": 4904
+    },
+    {
+      "file": "tests/blender_physics_alembic_empty_sequence.py",
+      "sha256": "d902d3f4e794d7ab608788bfd7e6f7c28b81d511a100ad90c554814825f448ad",
+      "bytes": 7454
+    },
+    {
+      "file": "tests/blender_physics_attribute_evidence_v04.py",
+      "sha256": "15841bbc3a1c59079d7f91eb0a83a1d97f65249627c44f875c5a1a8e1691914f",
+      "bytes": 7735
+    },
+    {
+      "file": "tests/blender_physics_authoring_v03.py",
+      "sha256": "12f7d6610b2709f94dd16893524c7c18fcdde7a18583608764aa37f3ef4d4bfc",
+      "bytes": 2957
+    },
+    {
+      "file": "tests/blender_physics_candidate_smoke.py",
+      "sha256": "60cb1dcbddf59f9943859bf51e55fcd4a3673b9e95c2d37b2087ecb1b7987801",
+      "bytes": 4348
+    },
+    {
+      "file": "tests/blender_physics_deformation_v03.py",
+      "sha256": "e513f7ccd98f064bc2dac9c70b8a903c30d33e81823d4c81d7f835756da6b515",
+      "bytes": 4067
+    },
+    {
+      "file": "tests/blender_physics_diagnostics_v081.py",
+      "sha256": "737e985d8eb9df266a012dcc9451c4fbcf95bc75e0ef56bf9004dcc398060ad9",
+      "bytes": 13269
+    },
+    {
+      "file": "tests/blender_physics_export_delivery_v05.py",
+      "sha256": "9106144dcccd3ebec6f572d202149fd6c660bd53b35afd4421043178f15322f0",
+      "bytes": 7446
+    },
+    {
+      "file": "tests/blender_physics_export_images_v05.py",
+      "sha256": "ae4cf8362af8661fb5d6849cec3edbfaa2868def1c0070927c3945c4c8a3916a",
+      "bytes": 3363
+    },
+    {
+      "file": "tests/blender_physics_export_prototypes_v05.py",
+      "sha256": "4cb004adcec2cb765b42c381777760465e05016bfebe8b5d37d03b7f2029c2da",
+      "bytes": 2835
+    },
+    {
+      "file": "tests/blender_physics_inputs_v03.py",
+      "sha256": "27d93ae372e9a5d93974ba86362e7b07c1c800cf1c51bfe61eedda3d93a1f3a6",
+      "bytes": 4245
+    },
+    {
+      "file": "tests/blender_physics_new_presets_v08.py",
+      "sha256": "3bbfade842803c9a67df24683d12988ea7879bd9fc4c5e02f1b7ce63128ee07d",
+      "bytes": 3147
+    },
+    {
+      "file": "tests/blender_physics_prepare_guards_v06.py",
+      "sha256": "3da2f4919c3f0a34ebf911c75bc9db507f95d06510a8d56893dc7f5ff1294fb3",
+      "bytes": 4444
+    },
+    {
+      "file": "tests/blender_physics_prepare_instances_v06.py",
+      "sha256": "e06beacf99cef21ff96a6a412194f2b3967332cd7b6af50becaddb5347edea0d",
+      "bytes": 7351
+    },
+    {
+      "file": "tests/blender_physics_prepared_abc_v06.py",
+      "sha256": "cd2dc0443d58856cc2de402638debe0d315d6d4398042ffa09485db084b7874d",
+      "bytes": 1909
+    },
+    {
+      "file": "tests/blender_physics_prepared_cache_v06.py",
+      "sha256": "357fd46bbad7584a70aa4394f92801c011a1c6db3a139678f52e87dec3bf266b",
+      "bytes": 3120
+    },
+    {
+      "file": "tests/blender_physics_prototype_order_v06.py",
+      "sha256": "a8e35c6854d1f2b24ad60337d29dad8096e174ade9d556bf7ca1d16621450f80",
+      "bytes": 2125
+    },
+    {
+      "file": "tests/blender_physics_rigid_contact_response.py",
+      "sha256": "f9c6ec9ecd96ea5b17b096e6f085ceded5edb7506edb1c574da3855f531c0f4d",
+      "bytes": 4206
+    },
+    {
+      "file": "tests/blender_physics_session_reload.py",
+      "sha256": "6b8e6158c41692eccb6cd621e9f6dbfbc9c58c946fa4543be6d1f38c58578077",
+      "bytes": 806
+    },
+    {
+      "file": "tests/blender_physics_sleep_boundaries_v08.py",
+      "sha256": "43c76d8422e2f4aa5dc585ae097ab12f67086094213616c6c18dc7aad24c6312",
+      "bytes": 4281
+    },
+    {
+      "file": "tests/blender_physics_stage_fluid_v08.py",
+      "sha256": "6b911c7524625a08718451ed24166482caee4f9547cac65519b08407987e2780",
+      "bytes": 7140
+    },
+    {
+      "file": "tests/blender_physics_stage_rigid_observe_v08.py",
+      "sha256": "783f8bda1f9411b5be6b615f8922acbe2ef67baff4a2c5fff3064378d54f4207",
+      "bytes": 2539
+    },
+    {
+      "file": "tests/blender_physics_stage_rigid_v08.py",
+      "sha256": "9f62a53e74cd3cc783a2f680b437df37b2634ae27b9d537f47ad490c4e3b1ce4",
+      "bytes": 8062
+    },
+    {
+      "file": "tests/blender_physics_state_roundtrip_v04.py",
+      "sha256": "9ac4b9c92a8595b7785c3f3a7563aef72fb5825eb7bd6564297918db9d22fcfc",
+      "bytes": 5368
+    },
+    {
+      "file": "tests/cache_guard_case.py",
+      "sha256": "61544312d1746e49c4642ebb66d1464c3926ee8d89404426d1988198f72538cd",
+      "bytes": 4545
+    },
+    {
+      "file": "tests/export_test_common.py",
+      "sha256": "f95d7b00f0edcebd35296df90b41220dd0208b22c5d888dda38d63fab20503a7",
+      "bytes": 4746
+    },
+    {
+      "file": "tests/openvdb_case_produce.py",
+      "sha256": "7a4741f30805228f4727ae4f6f130a404b47d20388ea732b66abf07d26841f5c",
+      "bytes": 15617
+    },
+    {
+      "file": "tests/openvdb_case_reopen.py",
+      "sha256": "c5f4d7858c7d90a09802a5ea66c04035f513d8f635f87ae0fd3207cff6cb9073",
+      "bytes": 4610
+    },
+    {
+      "file": "tests/physics_activation_cli_v07.py",
+      "sha256": "c800e9dc4e42e2d370e5b57ed5e93704e11b354169984b46912a367e8bf2ac0d",
+      "bytes": 2637
+    },
+    {
+      "file": "tests/physics_delivery_resume_v05.py",
+      "sha256": "6c4e7518430cfac12d2b337eca3a673482b5c3d2321bd8243a1cb6212059192a",
+      "bytes": 6979
+    },
+    {
+      "file": "tests/physics_diagnostics_cli_v081.py",
+      "sha256": "0b0c45daf885f2ecaa9cf8a2a4919b1a8eb6627b563f991a3cc96f1e7a495242",
+      "bytes": 6681
+    },
+    {
+      "file": "tests/physics_job_control_live_v04.py",
+      "sha256": "ce67c36ebc6e4d44c330fcf2157b523ca21ab4436a00b8136a11440defb3fd37",
+      "bytes": 6124
+    },
+    {
+      "file": "tests/physics_new_presets_cli_v08.py",
+      "sha256": "3c5e7791d14cbe9bc5a1e05a1f39555f13edae2688fd39a29f7314b666c99a78",
+      "bytes": 2319
+    },
+    {
+      "file": "tests/physics_prepare_instances_cli_v06.py",
+      "sha256": "88d042ea00ce089ccbb089ffcd1e2e28d76e2b8abfc893f2a4e6f276da0930e6",
+      "bytes": 2268
+    },
+    {
+      "file": "tests/physics_resume_exports_v03.py",
+      "sha256": "7fb999c7c91ba057e7c23f2421c9d4bff02cfa0a7adf60d1d03d06eb48f878bf",
+      "bytes": 2034
+    },
+    {
+      "file": "tests/run_export_tests.py",
+      "sha256": "899fe53fabec8f5a7f54d67206ce77375e0212170447f23a72298527a1ea8a47",
+      "bytes": 13516
+    },
+    {
+      "file": "tests/static_mesh_case.py",
+      "sha256": "355c65d682ff325755fa385f8a8c6f81c971845db261b26786af8e5878c3c760",
+      "bytes": 3632
+    },
+    {
+      "file": "tests/support/make_linked_resume_scene.py",
+      "sha256": "9593aeff4b370f26e97bb5282f1ee8a67e58bc034769bfaa1160c2d951f18ec8",
+      "bytes": 2888
+    },
+    {
+      "file": "tests/support/make_resume_scene.py",
+      "sha256": "53899472907b1f9b1ee6cd7f0ba5e090ee8ea1bc043e0c45bd22b82d4d89423c",
+      "bytes": 1751
+    },
+    {
+      "file": "tests/test_physics_activation_contract_v07.py",
+      "sha256": "96f073aa49ced93269a627ebea1c9847a72e596cc889af3c4ce4332dcfe2d3d5",
+      "bytes": 5413
     },
     {
       "file": "tests/test_physics_workflow_contract.py",
-      "sha256": "c3b337a14c9cb7ce7dca6f472fd48caef65e663dd7a0cba226e710e08b624082",
-      "bytes": 3388
+      "sha256": "97e89e94fa55cd31ff8c601c5bbae08fcb75d3ee29b7d490aefd4830c4e95f9c",
+      "bytes": 4589
+    },
+    {
+      "file": "tests/test_physics_workflow_job_control.py",
+      "sha256": "53c3d08186e6f9f411a21e4926d55be0a291c094c1ea28b7ba816e7cb357d406",
+      "bytes": 23876
+    },
+    {
+      "file": "tests/test_physics_workflow_resume.py",
+      "sha256": "15ba6940904813e63320ed311773f880cf9a4a9ef609a38098fc8b120a9f84bd",
+      "bytes": 26005
+    },
+    {
+      "file": "tests/test_physics_workflow_resume_atomic_replace.py",
+      "sha256": "b04ed238e42cb2fcf179a0263a5dc50de051e169c6ebc29fe361500dfdc5f3f8",
+      "bytes": 4731
+    },
+    {
+      "file": "tests/test_physics_workflow_resume_locks.py",
+      "sha256": "5a14dc3fcdd8a3fe188e8f4aaa77cf5a2217a9d31f830ed3b9d8451381321a69",
+      "bytes": 11972
     },
     {
       "file": "tools/physics_nodes_workflow_addon/__init__.py",
-      "sha256": "1635ff4c6abf8e7e34026b283c6846d6cbfd7bd787409458abddb46da16bb5c3",
-      "bytes": 6055
+      "sha256": "5e9e5776d2b8bd2e56b57c53a2f78243ebe8ef37a64af989671e62e09815ba66",
+      "bytes": 6477
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/animation_identity.py",
+      "sha256": "ce50abb44ea793806319a1404ceaf05191426ff5a19d32dceb8fbe6107a8c176",
+      "bytes": 25881
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/attribute_evidence.py",
+      "sha256": "066e73183941e05b80c54bacffbea3ef865049a76ab85780e1ab39245fc5e655",
+      "bytes": 6537
     },
     {
       "file": "tools/physics_nodes_workflow_addon/bake.py",
-      "sha256": "9ce2e31d0fc8d88ebc2ee56ee47f0b8c1eba74e8acedeff3d31445d2eee8a8b7",
-      "bytes": 7787
+      "sha256": "840a1f5d3ebddd6523b8020e2f9b1892331739c33751a65b792e75f7d8ea01c1",
+      "bytes": 74263
     },
     {
       "file": "tools/physics_nodes_workflow_addon/blender_manifest.toml",
-      "sha256": "acd43814de5f57395894dfd6d5da43a31c5de43e20e0a9e0aee6370a533edbf6",
-      "bytes": 353
+      "sha256": "62eaebdcf156edb4401f456420f5f373eea7d051431332d9643d803280868ab1",
+      "bytes": 359
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/box_tipping.py",
+      "sha256": "5bd8941e20a4d65eec56b221033269d7e24beaffe693e357f7c346e53373e706",
+      "bytes": 27218
     },
     {
       "file": "tools/physics_nodes_workflow_addon/bridge.py",
-      "sha256": "c775890a4e0ca89b4c1755f3c16ad32077fd739a407032c5b691ab2d69e17be7",
-      "bytes": 4030
+      "sha256": "fa79abc9d7c88b81ed23c18e01dba983addecdd4cb23fdd143a3ad10ddc4d3f7",
+      "bytes": 949
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/capabilities.py",
+      "sha256": "2ed8ee8b8dbbb97d4c600b36867964b0251850873f0fcbd3de7c43c33b6a19c1",
+      "bytes": 5287
     },
     {
       "file": "tools/physics_nodes_workflow_addon/contract.py",
-      "sha256": "20df01f2a4568452590825f8b0b476dce272b40c3508ff4cd057bd0a300e518a",
-      "bytes": 16085
+      "sha256": "8bec9f6f6e7e9d503c2cb08947695e96836f3a3335e8803e152e0f8b2375f45d",
+      "bytes": 24656
     },
     {
       "file": "tools/physics_nodes_workflow_addon/core.py",
-      "sha256": "359d8375487187417fad9a4b587d8b918c62e487f58a2a7b3459b8f0772939a0",
-      "bytes": 36671
+      "sha256": "02fdd5e0ce0a11ac532ca43061c5d2ed3b9fd6e330cbde6ec34485e8de758a1d",
+      "bytes": 51236
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/deformation.py",
+      "sha256": "0a61d8d235ce7b1d884aa346802f1f77b6db2d9873cb51cbf9556f0c453b5c8b",
+      "bytes": 2219
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/diagnostics.py",
+      "sha256": "e014e56cbebe7ef4b45ebb7afef6c546b8eef51adcecee5aaf1ea60f3be7ccc9",
+      "bytes": 8379
     },
     {
       "file": "tools/physics_nodes_workflow_addon/export.py",
-      "sha256": "b5c0f7929daaefa8941339b06af2170781c6b2432f5b7047d385f0b82b1c00f0",
-      "bytes": 4344
+      "sha256": "b82014717479b79604e675b16d33165ede89e6e8ad4f931a7b78e1e64312e3fd",
+      "bytes": 16632
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/export_delivery.py",
+      "sha256": "fd39b5b88cda74bc2a3956702a04749818979c848c2a754e701a51870f26931e",
+      "bytes": 5621
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/export_fidelity.py",
+      "sha256": "87445dabd5186c3dfac872d38d6a04cb668a3a260254b982254cb5e1b053fe47",
+      "bytes": 5350
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/geometry_evidence.py",
+      "sha256": "dff67326c97599a81d523e2f2805ccc6bfc4cdf022255cfae1c301ffbdf7cc57",
+      "bytes": 20119
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/identity.py",
+      "sha256": "40d92b77891004c3eec20bf38eb7c02ea654489c27d6aac9600ceb5e7237eb87",
+      "bytes": 76304
     },
     {
       "file": "tools/physics_nodes_workflow_addon/inspection.py",
-      "sha256": "56b67e14c9c47c9b027f63934677af3971a59a21846f3fbd817345c9d1536605",
-      "bytes": 7606
+      "sha256": "2fea7a331363476c2fea12090ab8e9230b0a9a0d76f9b4026b145cfb7955494b",
+      "bytes": 21655
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/prototypes.py",
+      "sha256": "b66840e60b5f814cf43f4e4745d29982ee1a1cedbb875faa7c43930f555aa22b",
+      "bytes": 8417
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/softbody.py",
+      "sha256": "c0ae7bc3206981d6574612ec674ca5291e17ce00ad107ba47857c9ab9da93d24",
+      "bytes": 13136
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/sphere_contacts.py",
+      "sha256": "efcf6c3dc6464b6fb5b37a15ea4b116aef6ded492c3d5b70d7153995d5cd9d7f",
+      "bytes": 53833
     },
     {
       "file": "tools/physics_nodes_workflow_addon/subgroups.py",
-      "sha256": "60954022918feceaaa1ae74b760e82791887a67a7cdda4df306b3d1f27f7fdd0",
-      "bytes": 55697
+      "sha256": "848c1dde0ce988e5166c134e373901b61448163c1568d518260f86e49ce2fec0",
+      "bytes": 162676
     },
     {
       "file": "tools/physics_nodes_workflow_addon/ui.py",
-      "sha256": "e57ee9dcf7669b2f3994cedc86c77946e728ff6369876380957780f4d5ee2742",
-      "bytes": 12237
+      "sha256": "5f0b2d5009f995dd7f1820c6da0664867479f6e550c057068d92e586c67f9c73",
+      "bytes": 30847
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/vdb_export.py",
+      "sha256": "0cd24491d552867062dbf0635f43cecb702e7edcfda5f4944af2d0347d076925",
+      "bytes": 20503
     },
     {
       "file": "tools/physics_workflow_cli_v1/__init__.py",
@@ -156,23 +522,38 @@
     },
     {
       "file": "tools/physics_workflow_cli_v1/cli.py",
-      "sha256": "15b1e65293d407ed8174d2685842dde50978ae78b97c5e4d76b6c0d44dcc00b0",
-      "bytes": 2848
+      "sha256": "0cd2d093eb655150043c708eb4b4595a07b8df913cb1a70ed6fb3c15c1de9b97",
+      "bytes": 5750
     },
     {
       "file": "tools/physics_workflow_cli_v1/deployment.py",
-      "sha256": "008e57aff071576d545275e2574a2f43b5a2b35b156f0ed615a6f9138cdbac38",
-      "bytes": 2014
+      "sha256": "32a283695a83539116948a898f71b654af61787f3e036c29514da3e279d9dc49",
+      "bytes": 2991
+    },
+    {
+      "file": "tools/physics_workflow_cli_v1/geometry_evidence.py",
+      "sha256": "c14297b7e821c6da92638bc854ed91fe0fd9d7735515cfec59e222566a65d050",
+      "bytes": 1129
+    },
+    {
+      "file": "tools/physics_workflow_cli_v1/job_control.py",
+      "sha256": "03b6a5052626e0ad8c60a2528ab2bad86ea6e1ae274fe20a32b361b4fcf1d21e",
+      "bytes": 38145
+    },
+    {
+      "file": "tools/physics_workflow_cli_v1/path_guard.py",
+      "sha256": "83b1e2a7834b9de7d09dc97d3a33f6a611b79bf5a0432796133784b830c37ffb",
+      "bytes": 5165
     },
     {
       "file": "tools/physics_workflow_cli_v1/physics_verifier.py",
-      "sha256": "a57d417e43cde12d9521e83472764048014cc9ec284f19ede6c71324c447e054",
-      "bytes": 3756
+      "sha256": "0c83c46c05419596db8f6e3613f50f52d3127ec8d61b183cec5830c3becabe22",
+      "bytes": 22398
     },
     {
       "file": "tools/physics_workflow_cli_v1/physics_workflow_public.py",
-      "sha256": "5abb13760f40c9ec6b9f50abe3a2b56d75cf31a694a861740429b2122f9036bf",
-      "bytes": 924
+      "sha256": "bd7ad3257c10c8b375c499deb0dfaec0319831bd91e39939e6e36a52403bdf77",
+      "bytes": 2490
     },
     {
       "file": "tools/physics_workflow_cli_v1/protocol.py",
@@ -180,14 +561,29 @@
       "bytes": 1336
     },
     {
+      "file": "tools/physics_workflow_cli_v1/resource_bootstrap.py",
+      "sha256": "f3551775b443db07fda84a4771762e8b21ae6968283861873b9e7aa2a9011a3b",
+      "bytes": 741
+    },
+    {
+      "file": "tools/physics_workflow_cli_v1/resource_guard.py",
+      "sha256": "80ef351d2f23cce6f3a8fcd8e16d8573a39a527c40554e79d149cbf5670a89f9",
+      "bytes": 20146
+    },
+    {
+      "file": "tools/physics_workflow_cli_v1/resume.py",
+      "sha256": "762f7ab2e9ef8794314d46c78a0c732baaefa2e06ad04b4027a41eafd629b235",
+      "bytes": 75260
+    },
+    {
       "file": "tools/physics_workflow_cli_v1/runner.py",
-      "sha256": "20f9ed26b34f5cf7a9b8e087e00251cd5441336a5ce0f6a0dc6df2aa2ffcfbbe",
-      "bytes": 11930
+      "sha256": "57579779ca127ea789cfcda31f2a2e9ec53de2ba0a01d984629c5e6be54d1182",
+      "bytes": 64792
     },
     {
       "file": "tools/physics_workflow_cli_v1/worker.py",
-      "sha256": "69796f826e41de3471638c2958d56987132a7c4aede2dab80b3cc96c2f5fccd0",
-      "bytes": 1531
+      "sha256": "e9bd857211bcab11cb1217f59e5889be1d35d2e18009530262b68211a4fe1ae8",
+      "bytes": 7639
     }
   ]
 }

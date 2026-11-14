@@ -1,77 +1,54 @@
-# Blender Physics Workflow
+# Blender Physics Workflow — 0.8.1-dev.1
 
-[简体中文](README.zh-CN.md) · [Contract Reference](docs/CONTRACT.md) · [Validation & Scope](docs/VALIDATION.md)
+[简体中文](README.zh-CN.md) · [Download](https://github.com/tsist/blender-physics-workflow/releases/tag/v0.8.1-dev.1) · [Contract](docs/CONTRACT.md)
 
-Modular **Geometry Nodes** physics workbench add-on (**0.1.0**), isolated companion CLI (**0.1.0**), and portable agent skill (**0.1.0**) for **Blender 5.2.1 LTS** (verified build `9e2066aef7ef`, GPL-3.0-or-later).
+An editable Geometry Nodes physics workbench, a workflow skill for AI assistants, and an optional CLI. Tested with **Blender 5.2.1 LTS, build 9e2066aef7ef**. This is a development prerelease under **GPL-3.0-or-later**.
 
-Companion integration PR target: [tsist/blenderctl](https://github.com/tsist/blenderctl).
+## What it does
 
----
+- Sphere-proxy rigid bodies, cloth and ropes, particle emission with surface reconstruction, elastic surface shells, and planar box tipping.
+- Editable node groups, protected source copies, authored-graph preservation, disk bake, inspection, and static mesh / Alembic / surface OpenVDB export.
+- CLI parameter sweeps, batches, status, cancellation, and candidate-level resume with output/dependency checks.
+- Inspection distinguishes mesh-to-ground distance from instance origins, reports unavailable motion explicitly, and reads actual solver sleep state.
 
-## Architecture Overview
+The qualified scenes include a 200-body container, 2000 sparse rigid bodies, 10000 cloth vertices, and 52520 simulated particles. These are scoped examples, not universal performance or physical-quality guarantees. See [stage validation](docs/STAGE-VALIDATION.md) and [diagnostic validation](docs/DIAGNOSTICS-VALIDATION.md).
 
-1. **Wrapper (`PNW_Wrapper_<obj>_<mod>`)**: Modifier-facing interface group preserving user-inserted nodes (`User_Added_*`) and extra group sockets across parameter updates, rebuilds, and disk bakes.
-2. **Core (`PNW_Core_<obj>_<mod>`)**: One root `GeometryNodeSimulationInput` / `GeometryNodeSimulationOutput` + trailing `GeometryNodeBake` + internal `GeometryNodeRepeatInput` / `GeometryNodeRepeatOutput` (`substeps = 1..8`, `dt_sub = Delta Time / Substeps`), guaranteeing a 1:1 binding between one modifier and one `DISK` bake cache.
-3. **12 Modular Stateless `PN_*` Subgroups**:
-   - Forces: `PN_Force_GravityDrag`, `PN_Force_WindTurbulence`
-   - Collision: `PN_Collide_GroundPlane`, `PN_Collide_MeshSurface`
-   - Constraints: `PN_Constraint_PinAnchor`, `PN_Constraint_DistanceChain`
-   - Solvers: `PN_Solver_RigidScatterStep`, `PN_Solver_ClothRopeStep` (relative-rest displacement PBD blur + velocity coupling), `PN_Solver_FluidParticleStep`
-   - Post-processing: `PN_Post_InstanceRigid`, `PN_Post_FluidSDFMesh` (`PointsToSDFGrid` -> `GridToMesh`), `PN_Post_SmokeVolume` (`PointsToVolume` -> `VolumeToMesh`)
+Particles are not a pressure/incompressible liquid solver. Elastic shells are not volumetric soft bodies. Box tipping is restricted to XZ translation, Y rotation and a fixed horizontal ground, without box-to-box contact. Bullet and Mantaflow bridges are reserved interfaces.
 
----
+## Install the Blender add-on
 
-## Supported Domains, Presets & Bridge Modes
+1. Download `physics_nodes_workflow_addon-0.8.1-dev.1.zip` from the release page.
+2. In Blender, open **Edit → Preferences → Get Extensions → menu → Install from Disk**, then choose that ZIP. Do not select the source or skill archive.
+3. Enable **Physics Nodes Workbench**. Select a target object and open the **Physics Nodes** tab in the 3D View sidebar (`N`).
+4. Choose a preset and use **Build / Update**. Source protection creates a working copy by default. Use **Bake to Disk**, then **Inspect Simulation** and save the project.
 
-- **Contract**: `BLENDER_PHYSICS_WORKFLOW_CONTRACT_V1` (`schema_version: 1.0`)
-- **Domains & Presets**:
-  - `rigid_scatter`: `rigid_drop_pack`, `rigid_chain_pendulum`
-  - `cloth_rope`: `cloth_banner_wind`, `rope_catenary_swing`
-  - `fluid_emission`: `fluid_fountain_sdf`, `smoke_plume_volume`
-- **Operations**: `build`, `update`, `parameters`, `bake`, `invalidate_cache`, `inspect`, `adopt`, `export`
-- **Bridge Modes**: `GN_NATIVE` (default), `BULLET_BRIDGE`, `XPBD_ASSET_BRIDGE`, `MANTAFLOW_BRIDGE`
-- **Export Formats**: `NONE`, `STATIC_MESH`, `ALEMBIC`, `OPENVDB`
-- **N-Panel UI**: `3D Viewport -> N-Panel -> Physics Nodes` (`VIEW_3D_PT_physics_nodes_workbench`)
+Keep the managed cache directories with the saved project. Upgrading an older graph can require an explicit **Rebuild** on a working copy; rebuilding retains the old graph. Back up existing projects before migrating from v0.1.0. Installation alone does not rebuild old graphs or make old caches valid.
 
----
+## Use the companion skill
 
-## Quick Start
+Download `blender-physics-workflow-skill-0.8.1-dev.1.zip` and extract its `blender-physics-workflow` directory into your assistant's skills directory. For Codex, this is normally `$CODEX_HOME/skills` or `~/.codex/skills`. The skill is also available at [skills/blender-physics-workflow/SKILL.md](skills/blender-physics-workflow/SKILL.md).
 
-### 1. Host Verification & Contract Describe
+The skill ZIP contains instructions, not executable tools. Also clone this repository or extract `blender-physics-workflow-0.8.1-dev.1-source.zip`. Tell your assistant that location: `<REPO_ROOT>` in the skill means that source directory, and its `docs/` references are relative to that directory. The license is included inside the copied skill folder. The skill does not install Blender or the add-on automatically.
 
-Requires Python **3.12+**:
+## Optional CLI
+
+The add-on and this CLI are self-contained; a separate blenderctl checkout is not required. Use Python 3.12 or 3.13 and set `BLENDER_PATH` to the verified Blender executable. Run these commands from the source directory.
 
 ```powershell
-python -B -m unittest discover -s tests -p "test_*.py" -v
+$env:BLENDER_PATH = 'C:/path/to/blender.exe'
 python -B tools/physics_workflow_cli_v1/cli.py describe
+python -B tools/physics_workflow_cli_v1/cli.py run --request request.json --jobs-dir ./jobs
+python -B tools/physics_workflow_cli_v1/cli.py resume --manifest C:/jobs/run-id/resume_plan.json
 ```
 
-### 2. Running Simulations via CLI (Blender 5.2.1 LTS Required)
+See the [skill](skills/blender-physics-workflow/SKILL.md) for request examples and the [contract](docs/CONTRACT.md) for supported operations. Cancel requests termination; the owning process confirms the final state. Resume validates completed candidates and replays incomplete ones from the original input, not from an arbitrary simulation frame.
 
-```powershell
-$env:BLENDER_PATH = "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
-python -B tools/physics_workflow_cli_v1/cli.py run `
-  --request examples/fluid_fountain_sdf.json `
-  --jobs-dir ./runtime/jobs `
-  --timeout-seconds 300
-```
-
-CLI subcommands: `describe`, `run`, `sweep`, `batch`.
-
-### 3. Installing the Add-on & Skill
-
-- **Blender Add-on**: Download `physics_nodes_workflow_addon-0.1.0.zip` from [Releases](https://github.com/tsist/blender-physics-workflow/releases) and install via **Preferences -> Extensions -> Install from Disk**.
-- **Agent Skill**: Download `blender-physics-workflow-skill-0.1.0.zip` or copy `skills/blender-physics-workflow/` into your agent skills directory.
-
----
-
-## Verification & Release Checks
+## Validation and reproducible archives
 
 ```powershell
 python -B scripts/verify_release.py
+python -B -m unittest discover -s tests -p "test_*.py" -v
 python -B scripts/build_release.py --output ./dist
 ```
 
-Local Blender 5.2.1 LTS Windows verification covers unit contract tests, extension packaging validation (`blender --command extension validate`), 3-domain `GN_NATIVE` simulation & `DISK` bake + cold reopen, multi-frame EEVEE renders, and Alembic `.abc` export (`fluid_fountain_sdf`). Host-only GitHub Actions CI checks syntax, inventory hashes, contract unit tests, CLI `describe`, and deterministic ZIP builds without running Blender.
-
-See [Validation & Scope](docs/VALIDATION.md) for explicit verified bounds and non-goals.
+The release contains the add-on ZIP, source/CLI ZIP, skill ZIP and `SHA256SUMS`. Each ZIP includes the license. Host CI checks source, contracts and deterministic packaging on Windows and Linux; Blender-dependent tests require the stated local environment and skip when it is absent. Actual physics and UI qualification is documented separately in [validation](docs/VALIDATION.md).

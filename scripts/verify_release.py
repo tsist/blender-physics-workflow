@@ -59,8 +59,8 @@ def private_findings(text: str) -> bool:
         r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
     ]
     return bool(
-        (("173" + "99") in normalized)
-        or re.search(r"f:/+blender ai|wm-20\d\d-\d\d-\d\d-|runtime/+audit/", normalized)
+        re.search(r"\b[a-z]:/+users/+[^/\s]+/", normalized)
+        or re.search(r"/(?:home|users)/[^/\s]+/", normalized)
         or any(re.search(p, text) for p in patterns)
     )
 
@@ -77,10 +77,17 @@ def verify(root: Path = ROOT) -> dict:
 
     runtime = runtime_entries(root)
     identity = sha(json.dumps(runtime, sort_keys=True, separators=(",", ":")).encode("utf-8"))
-    if len(runtime) != 18 or identity != publication["runtime_identity"]:
-        raise ValueError(f"18-file physics runtime identity mismatch (got {len(runtime)} files, {identity})")
+    if len(runtime) != publication["runtime_files"] or identity != publication["runtime_identity"]:
+        raise ValueError(f"Physics runtime identity mismatch (got {len(runtime)} files, {identity})")
     if not {row["file"] for row in runtime} <= set(names):
         raise ValueError("Runtime files missing from release inventory")
+
+    skill_manifest = json.loads((root / "skills/manifest.json").read_text(encoding="utf-8"))
+    for key, release_key in (("bundle_version", "skill"), ("addon_version", "addon"), ("cli_version", "cli")):
+        if skill_manifest[key] != publication[release_key]:
+            raise ValueError("Skill manifest version mismatch: " + key)
+    if any(skill["version"] != publication["skill"] for skill in skill_manifest["skills"]):
+        raise ValueError("Individual skill version mismatch")
 
     for name in names:
         path = safe_file(root, name)

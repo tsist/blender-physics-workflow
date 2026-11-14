@@ -1,13 +1,13 @@
 {
-  "bundle_version": "0.1.0",
+  "bundle_version": "0.8.1-dev.1",
   "license": "GPL-3.0-or-later",
-  "addon_version": "0.1.0",
-  "cli_version": "0.1.0",
+  "addon_version": "0.8.1-dev.1",
+  "cli_version": "0.8.1-dev.1",
   "skills": [
     {
       "name": "blender-physics-workflow",
-      "source_guidance": "Physics Nodes Workflow v0.1.0 (Blender 5.2.1 LTS baseline)",
-      "version": "0.1.0"
+      "source_guidance": "Physics Nodes Workflow v0.8.1-dev.1 (Blender 5.2.1 LTS baseline)",
+      "version": "0.8.1-dev.1"
     }
   ]
 }

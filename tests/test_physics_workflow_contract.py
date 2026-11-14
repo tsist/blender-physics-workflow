@@ -16,6 +16,15 @@ from physics_workflow_cli_v1 import protocol, runner  # noqa: E402
 
 
 class TestPhysicsWorkflowContract(unittest.TestCase):
+    def test_prepare_instances_is_an_explicit_input_only_operation(self) -> None:
+        request = {"operation": "prepare_instances", "instance_collection": "Prototypes"}
+        self.assertEqual(contract.normalize_request(request)["operation"], "prepare_instances")
+        for extra in ({"instance_collection": None}, {"bake": True},
+                      {"verify_cold_reopen": True}, {"export_format": "STATIC_MESH"},
+                      {"preset_id": "cloth_banner_wind"}):
+            with self.assertRaises(contract.PhysicsContractError):
+                contract.normalize_request({**request, **extra})
+
     def test_describe_contract_has_three_domains_and_six_presets(self) -> None:
         info = contract.describe_contract()
         self.assertEqual(info["contract_id"], contract.CONTRACT_ID)
@@ -52,6 +61,9 @@ class TestPhysicsWorkflowContract(unittest.TestCase):
             }
         )
         self.assertNotEqual(req1["parameters_hash"], req3["parameters_hash"])
+        req4 = contract.normalize_request({"preset_id": "cloth_banner_wind", "target_object": "BannerMesh",
+                                           "parameters": {"instance_normalize": False}})
+        self.assertNotEqual(req1["parameters_hash"], req4["parameters_hash"])
 
     def test_validation_rejects_invalid_bounds_and_mismatched_domain(self) -> None:
         bad_cases = [
@@ -63,6 +75,12 @@ class TestPhysicsWorkflowContract(unittest.TestCase):
             {"preset_id": "rigid_drop_pack", "parameters": {"nonexistent_param": 1}},
             {"preset_id": "rigid_drop_pack", "parameters": {"restitution": 1.5}},
             {"preset_id": "rigid_drop_pack", "parameters": {"gravity": [0.0, -9.81]}},
+            {"parameters": {"drag": float("nan")}},
+            {"parameters": {"gravity": [float("inf"), 0, 0]}},
+            {"parameters": {"substeps": float("inf")}},
+            {"parameters": {"substeps": 1.5}},
+            {"parameters": []},
+            {"parameters": {"instance_normalize": "false"}},
         ]
         for case in bad_cases:
             with self.assertRaises(contract.PhysicsContractError) as ctx:

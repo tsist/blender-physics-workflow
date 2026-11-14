@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 import bpy
 
 from . import bake as pnw_bake
+from . import box_tipping as pnw_box_tipping
 from . import bridge as pnw_bridge
+from . import softbody as pnw_softbody
 from . import subgroups as pnw_subgroups
+from .capabilities import IMPLEMENTATION_VERSION
 
 
 ROLE_KEY = "pnw_role"
@@ -20,7 +24,10 @@ FINGERPRINT_KEY = "pnw_last_fingerprint"
 STANDARD_INPUT_SOCKETS: tuple[tuple[str, str, Any], ...] = (
     ("Geometry", "NodeSocketGeometry", None),
     ("Substeps", "NodeSocketInt", 4),
+    ("Contact Iterations", "NodeSocketInt", 3),
+    ("Constraint Iterations", "NodeSocketInt", 12),
     ("Seed", "NodeSocketInt", 42),
+    ("Activation Frame", "NodeSocketInt", 0),
     ("Gravity", "NodeSocketVector", (0.0, 0.0, -9.81)),
     ("Drag", "NodeSocketFloat", 0.04),
     ("Wind Vector", "NodeSocketVector", (0.0, 0.0, 0.0)),
@@ -32,6 +39,8 @@ STANDARD_INPUT_SOCKETS: tuple[tuple[str, str, Any], ...] = (
     ("Contact Thickness", "NodeSocketFloat", 0.08),
     ("Particle Radius", "NodeSocketFloat", 0.12),
     ("Ground Z", "NodeSocketFloat", 0.0),
+    ("Box Half Extents", "NodeSocketVector", (0.2, 0.3, 1.0)),
+    ("Box Initial Tilt", "NodeSocketFloat", 0.3),
     ("Scatter Count", "NodeSocketInt", 48),
     ("Angular Spin", "NodeSocketFloat", 1.2),
     ("Anchor", "NodeSocketVector", (0.0, 0.0, 2.5)),
@@ -40,9 +49,17 @@ STANDARD_INPUT_SOCKETS: tuple[tuple[str, str, Any], ...] = (
     ("Emit Speed", "NodeSocketFloat", 6.0),
     ("Emit End Frame", "NodeSocketInt", 90),
     ("Lifetime", "NodeSocketInt", 120),
+    ("Buoyancy", "NodeSocketFloat", 0.0),
+    ("Curve Resolution", "NodeSocketInt", 64),
     ("SDF Voxel Size", "NodeSocketFloat", 0.08),
     ("Collider", "NodeSocketObject", None),
+    ("Collider Collection", "NodeSocketCollection", None),
     ("Instance Collection", "NodeSocketCollection", None),
+    ("Normalize Instances", "NodeSocketBool", True),
+    ("Bending", "NodeSocketBool", False),
+    ("Bend Softness", "NodeSocketFloat", 0.1),
+    ("Tearing", "NodeSocketBool", False),
+    ("Tear Threshold", "NodeSocketFloat", 1.2),
 )
 
 
@@ -50,7 +67,15 @@ def _socket_value_from_request(request: dict[str, Any], socket_name: str, obj: b
     p = request["parameters"]
     mapping: dict[str, Any] = {
         "Substeps": int(p["substeps"]),
+        "Contact Iterations": int(p["contact_iterations"]),
+        "Constraint Iterations": int(p["constraint_iterations"]),
         "Seed": int(p["seed"]),
+        "Activation Frame": int(p["activation_frame"]),
+        "Normalize Instances": bool(p["instance_normalize"]),
+        "Bending": p["bending"],
+        "Bend Softness": p["bend_softness"],
+        "Tearing": p["tearing"],
+        "Tear Threshold": p["tear_threshold"],
         "Gravity": tuple(float(x) for x in p["gravity"]),
         "Drag": float(p["drag"]),
         "Wind Vector": tuple(float(x) for x in p["wind_vector"]),
@@ -62,6 +87,8 @@ def _socket_value_from_request(request: dict[str, Any], socket_name: str, obj: b
         "Contact Thickness": float(p["contact_thickness"]),
         "Particle Radius": float(p["particle_radius"]),
         "Ground Z": float(p["ground_z"]),
+        "Box Half Extents": tuple(float(x) for x in p.get("box_half_extents", (0.2, 0.3, 1.0))),
+        "Box Initial Tilt": float(p.get("box_initial_tilt", 0.3)),
         "Scatter Count": int(p["scatter_count"]),
         "Angular Spin": float(p["angular_spin"]),
         "Anchor": tuple(float(x) for x in p["anchor_pos"]),
@@ -70,6 +97,8 @@ def _socket_value_from_request(request: dict[str, Any], socket_name: str, obj: b
         "Emit Speed": float(p["emit_speed"]),
         "Emit End Frame": int(p["emit_end_frame"]),
         "Lifetime": int(p["lifetime"]),
+        "Buoyancy": float(p["buoyancy"]),
+        "Curve Resolution": int(p["curve_resolution"]),
         "SDF Voxel Size": float(p["sdf_voxel_size"]),
     }
     if socket_name == "Collider":
@@ -81,14 +110,18 @@ def _socket_value_from_request(request: dict[str, Any], socket_name: str, obj: b
             raise ValueError(f"Collider object not found: {cname}")
         if col_obj == obj:
             raise ValueError("Collider object cannot reference target object itself")
+        if col_obj.type != "MESH":
+            raise ValueError("Collider must be a mesh surface")
         return col_obj
-    if socket_name == "Instance Collection":
-        coll_name = request.get("instance_collection")
+    if socket_name in {"Instance Collection", "Collider Collection"}:
+        coll_name = request.get("instance_collection" if socket_name == "Instance Collection" else "collider_collection")
         if not coll_name:
             return None
         coll = bpy.data.collections.get(coll_name)
         if coll is None:
-            raise ValueError(f"Instance collection not found: {coll_name}")
+            raise ValueError(f"Collection not found: {coll_name}")
+        if obj in list(coll.all_objects):
+            raise ValueError("Referenced collection cannot contain the simulation target (dependency cycle)")
         return coll
     return mapping.get(socket_name)
 
@@ -153,14 +186,9 @@ def _build_core_tree(
     domain = request["domain"]
     preset_id = request["preset_id"]
 
-    existing = bpy.data.node_groups.get(core_name)
-    if existing is not None:
-        existing.nodes.clear()
-        if force_rebuild:
-            existing.interface.clear()
-        tree = existing
-    else:
-        tree = bpy.data.node_groups.new(core_name, "GeometryNodeTree")
+    # Never rewrite a datablock selected by a display name. Explicit rebuilds
+    # allocate a replacement; the previous graph remains available for recovery.
+    tree = bpy.data.node_groups.new(core_name, "GeometryNodeTree")
 
     tree[ROLE_KEY] = "core"
     _ensure_standard_interface(tree)
@@ -221,14 +249,11 @@ def _build_core_tree(
         tree.links.new(use_dist.outputs["Value"], sw_pts.inputs["Switch"])
         tree.links.new(m2p.outputs["Points"], sw_pts.inputs["False"])
         tree.links.new(dist.outputs["Points"], sw_pts.inputs["True"])
-
-        # Seeded slight initial velocity jitter + random rotation
-        rv_rot = tree.nodes.new("FunctionNodeRandomValue")
-        rv_rot.data_type = "FLOAT_VECTOR"
-        rv_rot.inputs["Min"].default_value = (-1.5, -1.5, -1.5)
-        rv_rot.inputs["Max"].default_value = (1.5, 1.5, 1.5)
-        rv_rot.location = (-780, -200)
-        tree.links.new(gin.outputs["Seed"], rv_rot.inputs["Seed"])
+        if obj.type in {"CURVE", "CURVES"}:
+            curve_points = tree.nodes.new("GeometryNodeCurveToPoints")
+            tree.links.new(gin.outputs["Geometry"], curve_points.inputs["Curve"])
+            tree.links.new(gin.outputs["Curve Resolution"], curve_points.inputs["Count"])
+            tree.links.new(curve_points.outputs["Points"], sw_pts.inputs["False"])
 
         st_vel = tree.nodes.new("GeometryNodeStoreNamedAttribute")
         st_vel.data_type = "FLOAT_VECTOR"
@@ -244,16 +269,46 @@ def _build_core_tree(
         st_rot.inputs["Name"].default_value = "pnw_rotation"
         st_rot.location = (-400, 20)
         tree.links.new(st_vel.outputs["Geometry"], st_rot.inputs["Geometry"])
-        tree.links.new(rv_rot.outputs["Value"], st_rot.inputs["Value"])
-        pre_sim_geo = st_rot.outputs["Geometry"]
+        if preset_id == pnw_box_tipping.PRESET_ID:
+            # Isolated planar preset: deterministic initial tilt about Y.  The
+            # explicit persistent angular velocity starts at zero; it is only
+            # changed by real contact impulses in PN_Solver_BoxFloorStep.
+            initial_tilt = tree.nodes.new("ShaderNodeCombineXYZ")
+            initial_tilt.location = (-780, -200)
+            initial_tilt.inputs["X"].default_value = 0.0
+            tree.links.new(gin.outputs["Box Initial Tilt"], initial_tilt.inputs["Y"])
+            initial_tilt.inputs["Z"].default_value = 0.0
+            tree.links.new(initial_tilt.outputs["Vector"], st_rot.inputs["Value"])
+
+            st_omega = tree.nodes.new("GeometryNodeStoreNamedAttribute")
+            st_omega.data_type = "FLOAT_VECTOR"
+            st_omega.domain = "POINT"
+            st_omega.inputs["Name"].default_value = "pnw_omega"
+            st_omega.inputs["Value"].default_value = (0.0, 0.0, 0.0)
+            st_omega.location = (-220, 20)
+            tree.links.new(st_rot.outputs["Geometry"], st_omega.inputs["Geometry"])
+            pre_sim_geo = st_omega.outputs["Geometry"]
+        else:
+            # Seeded random initial rotation for the historical rigid presets.
+            rv_rot = tree.nodes.new("FunctionNodeRandomValue")
+            rv_rot.data_type = "FLOAT_VECTOR"
+            rv_rot.inputs["Min"].default_value = (-1.5, -1.5, -1.5)
+            rv_rot.inputs["Max"].default_value = (1.5, 1.5, 1.5)
+            rv_rot.location = (-780, -200)
+            tree.links.new(gin.outputs["Seed"], rv_rot.inputs["Seed"])
+            tree.links.new(rv_rot.outputs["Value"], st_rot.inputs["Value"])
+            pre_sim_geo = st_rot.outputs["Geometry"]
 
     elif domain == "cloth_rope":
         # Convert Curve to Mesh edges automatically if object is a curve; leave Mesh untouched
-        is_curve_src = (obj.type == "CURVE")
+        is_curve_src = obj.type in {"CURVE", "CURVES"}
         if is_curve_src:
+            resample = tree.nodes.new("GeometryNodeResampleCurve")
+            tree.links.new(gin.outputs["Curve Resolution"], resample.inputs["Count"])
+            tree.links.new(gin.outputs["Geometry"], resample.inputs["Curve"])
             c2m = tree.nodes.new("GeometryNodeCurveToMesh")
             c2m.location = (-1250, 20)
-            tree.links.new(gin.outputs["Geometry"], c2m.inputs["Curve"])
+            tree.links.new(resample.outputs["Curve"], c2m.inputs["Curve"])
             base_geo_out = c2m.outputs["Mesh"]
         else:
             base_geo_out = gin.outputs["Geometry"]
@@ -277,7 +332,7 @@ def _build_core_tree(
         st_vel.location = (-840, 20)
         tree.links.new(st_rest.outputs["Geometry"], st_vel.inputs["Geometry"])
 
-        # Read user-provided "pnw_pinned" attribute if present, else auto-pin top band (Z >= bbox_max.z - 0.08)
+        # Read authored pins; the switch below uses zero when the attribute is absent.
         pin_attr = tree.nodes.new("GeometryNodeInputNamedAttribute")
         pin_attr.data_type = "FLOAT"
         pin_attr.inputs["Name"].default_value = "pnw_pinned"
@@ -311,7 +366,9 @@ def _build_core_tree(
         sw_pin.input_type = "FLOAT"
         sw_pin.location = (-520, -160)
         tree.links.new(pin_attr.outputs["Exists"], sw_pin.inputs["Switch"])
-        tree.links.new(auto_pin.outputs["Value"], sw_pin.inputs["False"])
+        # Pinning is an authored attribute; a horizontal cloth must not become
+        # completely frozen just because every point lies in the top Z band.
+        sw_pin.inputs["False"].default_value = 0.0
         tree.links.new(pin_attr.outputs["Attribute"], sw_pin.inputs["True"])
 
         st_pin = tree.nodes.new("GeometryNodeStoreNamedAttribute")
@@ -361,6 +418,32 @@ def _build_core_tree(
 
     scene_time = tree.nodes.new("GeometryNodeInputSceneTime")
     scene_time.location = (-120, -260)
+
+    if domain == "rigid_scatter":
+        # Native Skip preserves the entire previous simulation state, including
+        # rotation and zero initial velocity, without advancing any solver step.
+        # Activation is a whole-workflow gate; points are not separate bodies
+        # coupled to other modifiers while waiting.
+        waiting = tree.nodes.new("ShaderNodeMath")
+        waiting.name = "PNW_ActivationWaiting"
+        waiting.operation = "LESS_THAN"
+        waiting.location = (-120, -820)
+        tree.links.new(scene_time.outputs["Frame"], waiting.inputs[0])
+        tree.links.new(gin.outputs["Activation Frame"], waiting.inputs[1])
+        tree.links.new(waiting.outputs["Value"], sim_out.inputs["Skip"])
+        active = tree.nodes.new("FunctionNodeBooleanMath")
+        active.name = "PNW_ActivationEnabled"
+        active.operation = "NOT"
+        active.location = (80, -820)
+        tree.links.new(waiting.outputs["Value"], active.inputs[0])
+        initial_active = tree.nodes.new("GeometryNodeStoreNamedAttribute")
+        initial_active.name = "PNW_InitialActive"
+        initial_active.data_type = "BOOLEAN"
+        initial_active.domain = "POINT"
+        initial_active.inputs["Name"].default_value = "pnw_active"
+        tree.links.new(pre_sim_geo, initial_active.inputs["Geometry"])
+        tree.links.new(active.outputs["Boolean"], initial_active.inputs["Value"])
+        tree.links.new(initial_active.outputs["Geometry"], sim_in.inputs["Geometry"])
 
     # For fluid_emission, emit new particles per frame inside Simulation Zone and cull expired ones
     if domain == "fluid_emission":
@@ -437,17 +520,18 @@ def _build_core_tree(
         tree.links.new(sim_in.outputs["Geometry"], join_sim.inputs["Geometry"])
         tree.links.new(sw_emit.outputs["Output"], join_sim.inputs["Geometry"])
 
-        # Delete particles older than Lifetime / 24.0 seconds
+        # Age is stored in seconds. Delta Time is one simulation frame and
+        # follows the scene FPS/FPS Base rather than a fixed 24 fps assumption.
         age_read = tree.nodes.new("GeometryNodeInputNamedAttribute")
         age_read.data_type = "FLOAT"
         age_read.inputs["Name"].default_value = "pnw_age"
         age_read.location = (600, 420)
 
         life_sec = tree.nodes.new("ShaderNodeMath")
-        life_sec.operation = "DIVIDE"
-        life_sec.inputs[1].default_value = 24.0
+        life_sec.operation = "MULTIPLY"
         life_sec.location = (600, 560)
         tree.links.new(gin.outputs["Lifetime"], life_sec.inputs[0])
+        tree.links.new(sim_in.outputs["Delta Time"], life_sec.inputs[1])
 
         expired = tree.nodes.new("ShaderNodeMath")
         expired.operation = "GREATER_THAN"
@@ -505,7 +589,18 @@ def _build_core_tree(
     # Call the domain solver subgroup inside Repeat Zone
     solver = tree.nodes.new("GeometryNodeGroup")
     solver.location = (560, -100)
-    if domain == "rigid_scatter":
+    if domain == "rigid_scatter" and preset_id == pnw_box_tipping.PRESET_ID:
+        # Independent box-floor impulse solver.  The historical sphere solver
+        # is not placed in this graph at all.
+        solver.node_tree = subgroups["PN_Solver_BoxFloorStep"]
+        tree.links.new(rep_in.outputs["Geometry"], solver.inputs["Geometry"])
+        tree.links.new(dt_sub.outputs["Value"], solver.inputs["Delta Time"])
+        tree.links.new(gin.outputs["Gravity"], solver.inputs["Gravity"])
+        tree.links.new(local_ground_z.outputs["Value"], solver.inputs["Ground Z"])
+        tree.links.new(gin.outputs["Box Half Extents"], solver.inputs["Box Half Extents"])
+        tree.links.new(gin.outputs["Restitution"], solver.inputs["Restitution"])
+        tree.links.new(gin.outputs["Friction"], solver.inputs["Friction"])
+    elif domain == "rigid_scatter":
         solver.node_tree = subgroups["PN_Solver_RigidScatterStep"]
         tree.links.new(rep_in.outputs["Geometry"], solver.inputs["Geometry"])
         tree.links.new(dt_sub.outputs["Value"], solver.inputs["Delta Time"])
@@ -527,6 +622,7 @@ def _build_core_tree(
         tree.links.new(gin.outputs["Stiffness"], solver.inputs["Stiffness"])
     elif domain == "cloth_rope":
         solver.node_tree = subgroups["PN_Solver_ClothRopeStep"]
+        solver.inputs["Elastic Shell"].default_value = preset_id == "softbody_elastic_shell"
         tree.links.new(rep_in.outputs["Geometry"], solver.inputs["Geometry"])
         tree.links.new(dt_sub.outputs["Value"], solver.inputs["Delta Time"])
         tree.links.new(scene_time.outputs["Seconds"], solver.inputs["Time"])
@@ -558,18 +654,46 @@ def _build_core_tree(
 
     tree.links.new(solver.outputs["Geometry"], rep_out.inputs["Geometry"])
     tree.links.new(rep_out.outputs["Geometry"], sim_out.inputs["Geometry"])
+    if domain == "rigid_scatter":
+        # This state update is skipped together with the solver while waiting.
+        # Store the observed state before instancing and disk bake.
+        active_state = tree.nodes.new("GeometryNodeStoreNamedAttribute")
+        active_state.name = "PNW_SimulatedActive"
+        active_state.data_type = "BOOLEAN"
+        active_state.domain = "POINT"
+        active_state.inputs["Name"].default_value = "pnw_active"
+        active_state.inputs["Value"].default_value = True
+        tree.links.new(rep_out.outputs["Geometry"], active_state.inputs["Geometry"])
+        tree.links.new(active_state.outputs["Geometry"], sim_out.inputs["Geometry"])
 
     # Post-simulation stage outside Simulation Zone
+    if domain == "rigid_scatter" and "Contact Iterations" in solver.inputs:
+        tree.links.new(gin.outputs["Contact Iterations"], solver.inputs["Contact Iterations"])
+    if domain == "cloth_rope" and "Constraint Iterations" in solver.inputs:
+        tree.links.new(gin.outputs["Constraint Iterations"], solver.inputs["Constraint Iterations"])
+    if domain == "cloth_rope" and "Rope Resample Count" in solver.inputs:
+        tree.links.new(gin.outputs["Curve Resolution"], solver.inputs["Rope Resample Count"])
+    if domain == "cloth_rope":
+        for name in ("Bending", "Bend Softness", "Tearing", "Tear Threshold"):
+            tree.links.new(gin.outputs[name], solver.inputs[name])
     if domain == "rigid_scatter":
         post = tree.nodes.new("GeometryNodeGroup")
-        post.node_tree = subgroups["PN_Post_InstanceRigid"]
         post.location = (1460, 0)
-        tree.links.new(sim_out.outputs["Geometry"], post.inputs["Points"])
-        tree.links.new(gin.outputs["Instance Collection"], post.inputs["Instance Collection"])
-        tree.links.new(gin.outputs["Particle Radius"], post.inputs["Radius"])
+        if preset_id == pnw_box_tipping.PRESET_ID:
+            # True-size cube instancing: dimensions are 2 * box_half_extents.
+            # No 2r sphere normalization is involved.
+            post.node_tree = subgroups["PN_Post_InstanceBox"]
+            tree.links.new(sim_out.outputs["Geometry"], post.inputs["Points"])
+            tree.links.new(gin.outputs["Box Half Extents"], post.inputs["Box Half Extents"])
+        else:
+            post.node_tree = subgroups["PN_Post_InstanceRigid"]
+            tree.links.new(sim_out.outputs["Geometry"], post.inputs["Points"])
+            tree.links.new(gin.outputs["Instance Collection"], post.inputs["Instance Collection"])
+            tree.links.new(gin.outputs["Particle Radius"], post.inputs["Radius"])
+            tree.links.new(gin.outputs["Normalize Instances"], post.inputs["Normalize Instances"])
         tree.links.new(post.outputs["Geometry"], gout.inputs["Geometry"])
     elif domain == "cloth_rope":
-        if obj.type == "CURVE":
+        if obj.type in {"CURVE", "CURVES"}:
             # Convert simulated polyline edges back to smooth tubular rope mesh
             m2c = tree.nodes.new("GeometryNodeMeshToCurve")
             m2c.location = (1380, 0)
@@ -616,6 +740,22 @@ def _build_core_tree(
             tree.links.new(gin.outputs["SDF Voxel Size"], post.inputs["Voxel Size"])
             post_out_sock = post.outputs["Mesh"]
 
+        # Report the actual simulated particle population on the reconstructed
+        # surface. Mesh vertices are not particle counts, and this statistic
+        # does not claim to expose or compare the complete solver state.
+        particle_count = tree.nodes.new("GeometryNodeAttributeDomainSize")
+        particle_count.name = "PNW_ParticlePopulation"
+        particle_count.component = "POINTCLOUD"
+        tree.links.new(sim_out.outputs["Geometry"], particle_count.inputs["Geometry"])
+        population = tree.nodes.new("GeometryNodeStoreNamedAttribute")
+        population.name = "PNW_OutputParticleCount"
+        population.data_type = "INT"
+        population.domain = "POINT"
+        population.inputs["Name"].default_value = "pnw_particle_count"
+        tree.links.new(post_out_sock, population.inputs["Geometry"])
+        tree.links.new(particle_count.outputs["Point Count"], population.inputs["Value"])
+        post_out_sock = population.outputs["Geometry"]
+
         if hasattr(obj.data, "materials") and len(obj.data.materials) > 0 and obj.data.materials[0] is not None:
             set_mat = tree.nodes.new("GeometryNodeSetMaterial")
             set_mat.location = (1680, 0)
@@ -625,6 +765,60 @@ def _build_core_tree(
         else:
             tree.links.new(post_out_sock, gout.inputs["Geometry"])
 
+    # Forces, radii, ground and anchors are defined in world space. Transform
+    # the entire input geometry (including instance transforms) into world
+    # space before simulation; invert the full matrix only at the output.
+    world_in = tree.nodes.new("GeometryNodeTransform")
+    world_in.name = "PNW_InputToWorld"
+    world_in.inputs["Mode"].default_value = "Matrix"
+    input_consumers = [l.to_socket for l in gin.outputs["Geometry"].links]
+    for socket in input_consumers:
+        tree.links.new(world_in.outputs["Geometry"], socket)
+    tree.links.new(gin.outputs["Geometry"], world_in.inputs["Geometry"])
+    tree.links.new(self_info.outputs["Transform"], world_in.inputs["Transform"])
+    # Density is defined against the evaluated world-space emitting surface.
+    # A baked-in local area estimate changes the count when an object is scaled.
+    if obj.type == "MESH":
+        face_area = tree.nodes.new("GeometryNodeInputMeshFaceArea")
+        area_sum = tree.nodes.new("GeometryNodeAttributeStatistic")
+        area_sum.data_type = "FLOAT"
+        area_sum.domain = "FACE"
+        tree.links.new(world_in.outputs["Geometry"], area_sum.inputs["Geometry"])
+        tree.links.new(face_area.outputs["Area"], area_sum.inputs["Attribute"])
+        if domain == "rigid_scatter":
+            tree.links.new(area_sum.outputs["Sum"], dens.inputs[1])
+        elif domain == "fluid_emission":
+            tree.links.new(area_sum.outputs["Sum"], emit_dens.inputs[1])
+    inverse = tree.nodes.new("FunctionNodeInvertMatrix")
+    tree.links.new(self_info.outputs["Transform"], inverse.inputs["Matrix"])
+    world_out = tree.nodes.new("GeometryNodeTransform")
+    world_out.name = "PNW_OutputToLocal"
+    world_out.inputs["Mode"].default_value = "Matrix"
+    output_source = gout.inputs["Geometry"].links[0].from_socket
+    tree.links.new(output_source, world_out.inputs["Geometry"])
+    tree.links.new(inverse.outputs["Matrix"], world_out.inputs["Transform"])
+    tree.links.new(world_out.outputs["Geometry"], gout.inputs["Geometry"])
+    tree.links.new(gin.outputs["Ground Z"], solver.inputs["Ground Z"])
+    if "Collider Geometry" in solver.inputs:
+        coll_info = tree.nodes.new("GeometryNodeCollectionInfo")
+        coll_info.name = "PNW_ColliderCollectionWorld"
+        coll_info.transform_space = "ORIGINAL"
+        tree.links.new(gin.outputs["Collider Collection"], coll_info.inputs["Collection"])
+        coll_realize = tree.nodes.new("GeometryNodeRealizeInstances")
+        tree.links.new(coll_info.outputs["Instances"], coll_realize.inputs["Geometry"])
+        tree.links.new(coll_realize.outputs["Geometry"], solver.inputs["Collider Geometry"])
+    elif request.get("collider_collection"):
+        raise ValueError("Collider collections require the updated contact solver")
+    if "Anchor" in solver.inputs:
+        tree.links.new(gin.outputs["Anchor"], solver.inputs["Anchor"])
+    if domain == "fluid_emission":
+        buoyancy = tree.nodes.new("ShaderNodeCombineXYZ")
+        tree.links.new(gin.outputs["Buoyancy"], buoyancy.inputs["Z"])
+        acceleration = tree.nodes.new("ShaderNodeVectorMath")
+        acceleration.operation = "ADD"
+        tree.links.new(gin.outputs["Gravity"], acceleration.inputs[0])
+        tree.links.new(buoyancy.outputs["Vector"], acceleration.inputs[1])
+        tree.links.new(acceleration.outputs["Vector"], solver.inputs["Gravity"])
     tree[FINGERPRINT_KEY] = pnw_subgroups.tree_fingerprint(tree)
     return tree
 
@@ -637,12 +831,7 @@ def _build_or_preserve_wrapper(
     """Create wrapper tree or safely rebind Core inside existing wrapper while preserving user edits."""
     existing = bpy.data.node_groups.get(wrapper_name)
     if existing is None or force_rebuild:
-        if existing is not None:
-            existing.nodes.clear()
-            existing.interface.clear()
-            wrapper = existing
-        else:
-            wrapper = bpy.data.node_groups.new(wrapper_name, "GeometryNodeTree")
+        wrapper = bpy.data.node_groups.new(wrapper_name, "GeometryNodeTree")
         wrapper[ROLE_KEY] = "wrapper"
         _ensure_standard_interface(wrapper)
 
@@ -661,132 +850,129 @@ def _build_or_preserve_wrapper(
         wrapper[FINGERPRINT_KEY] = pnw_subgroups.tree_fingerprint(wrapper)
         return wrapper, False
 
-    # Preserve existing wrapper! Ensure standard sockets exist, update PNW_CoreNode reference, keep user nodes/links
+    # The absence of a link is also an author edit. Preserve it literally.
     manual_edited = pnw_subgroups.is_tree_manually_edited(existing)
-    _ensure_standard_interface(existing)
-    core_node = existing.nodes.get("PNW_CoreNode")
-    if core_node is None:
-        core_node = next((n for n in existing.nodes if n.bl_idname == "GeometryNodeGroup"), None)
-    if core_node is not None:
-        if core_node.node_tree != core:
-            core_node.node_tree = core
-        win = next((n for n in existing.nodes if n.bl_idname == "NodeGroupInput"), None)
-        if win is not None:
-            for name, _, _ in STANDARD_INPUT_SOCKETS:
-                if name in core_node.inputs and not core_node.inputs[name].is_linked and name in win.outputs:
-                    existing.links.new(win.outputs[name], core_node.inputs[name])
     return existing, manual_edited
 
 
+def _copy_graph(tree, copies=None):
+    """Detach nested node datablocks without losing any author edits."""
+    copies = {} if copies is None else copies
+    key = tree.as_pointer()
+    if key in copies:
+        return copies[key]
+    clone = tree.copy()
+    copies[key] = clone
+    for node in clone.nodes:
+        nested = getattr(node, "node_tree", None)
+        if nested is not None:
+            node.node_tree = _copy_graph(nested, copies)
+    return clone
+
+
+def _validate_target(obj, request):
+    if obj.library or (obj.data and obj.data.library):
+        raise ValueError("Linked targets are read-only; create a local working copy first")
+    if obj.mode != "OBJECT":
+        raise ValueError("Physics workflow requires Object Mode")
+    if obj.type not in {"MESH", "CURVE", "CURVES"}:
+        raise ValueError(f"Unsupported target type: {obj.type}; expected Mesh or Curves")
+    if abs(obj.matrix_world.determinant()) < 1e-12:
+        raise ValueError("Target transform is singular; simulation requires an invertible matrix")
+    if request["domain"] == "fluid_emission" and obj.type != "MESH":
+        raise ValueError("Particle emission currently requires a mesh surface")
+    if request["bridge_mode"] != "GN_NATIVE":
+        raise ValueError("UNSUPPORTED_BRIDGE: native bridge interfaces are reserved; no complete bake adapter is available")
+    if obj.rigid_body or any(m.type == "FLUID" or m.name.endswith("_XPBD") for m in obj.modifiers):
+        raise ValueError("Target already has a native physics bridge; use a clean working copy to avoid double simulation")
+    # Validate references before creating/changing any graph.
+    if obj.type != "MESH" and (request["parameters"]["bending"] or request["parameters"]["tearing"]):
+        raise ValueError("Cloth bending/tearing requires mesh faces; curve rod bend/twist is not implemented")
+    for socket in ("Collider", "Instance Collection", "Collider Collection"):
+        _socket_value_from_request(request, socket, obj)
+    if request["preset_id"] == pnw_box_tipping.PRESET_ID:
+        pnw_box_tipping.preflight_box_tipping(obj, request)
+
+
 def build_or_update_workflow(obj: bpy.types.Object, request: dict[str, Any]) -> dict[str, Any]:
-    op = request["operation"]
-    mod_name = request["modifier_name"]
+    _validate_target(obj, request)
+    pnw_softbody.validate_softbody_input(obj, request)
+    op, mod_name = request["operation"], request["modifier_name"]
     force_rebuild = bool(request.get("force_rebuild", False))
-    obj_state_key = f"{STATE_PROP}__{mod_name}"
-
+    key = f"{STATE_PROP}__{mod_name}"
+    try:
+        previous = json.loads(obj.get(key, "{}"))
+    except (TypeError, json.JSONDecodeError):
+        raise ValueError("Workflow state is damaged; preserve this object and build a new working copy")
     mod = obj.modifiers.get(mod_name)
-    if op == "parameters":
-        if mod is None or mod.type != "NODES" or mod.node_group is None:
-            raise ValueError(f"Modifier '{mod_name}' with GeometryNodeTree not found on '{obj.name}'")
-        apply_request_parameters(obj, mod, request)
-        state = json.loads(obj.get(obj_state_key, "{}"))
-        prev_hash = state.get("parameters_hash")
-        hash_changed = prev_hash is not None and prev_hash != request["parameters_hash"]
-        cache_invalidated = False
-        if hash_changed:
-            pnw_bake.invalidate_cache(obj, mod, request.get("bake_directory") or mod.bake_directory or None)
-            cache_invalidated = True
-        state.update(
-            {
-                "domain": request["domain"],
-                "preset_id": request["preset_id"],
-                "bridge_mode": request["bridge_mode"],
-                "parameters": request["parameters"],
-                "parameters_hash": request["parameters_hash"],
-            }
-        )
-        obj[obj_state_key] = json.dumps(state, ensure_ascii=False)
-        wrapper = mod.node_group
-        core_node = wrapper.nodes.get("PNW_CoreNode") or next(
-            (n for n in wrapper.nodes if n.bl_idname == "GeometryNodeGroup"), None
-        )
-        core_tree = core_node.node_tree if core_node else None
-        return {
-            "mode": "parameters_only",
-            "wrapper_name": wrapper.name,
-            "core_name": core_tree.name if core_tree else None,
-            "manual_edits_preserved": pnw_subgroups.is_tree_manually_edited(wrapper),
-            "cache_invalidated_on_hash_change": cache_invalidated,
-            "parameters_hash": request["parameters_hash"],
-            "graph_fingerprint": pnw_subgroups.tree_fingerprint(wrapper),
-        }
+    if mod and (mod.type != "NODES" or mod.node_group is None):
+        raise ValueError(f"Modifier '{mod_name}' is not a managed physics node workflow")
+    if mod and mod.node_group.get(ROLE_KEY) != "wrapper":
+        raise ValueError("Refusing to overwrite an unowned node graph; use a new modifier name")
+    if mod and previous.get("implementation_version") != IMPLEMENTATION_VERSION and not force_rebuild:
+        raise ValueError("LEGACY_WORKFLOW: keep the authored graph or explicitly rebuild into a new retained copy with force_rebuild=True")
+    if op == "parameters" and mod is None:
+        raise ValueError(f"Physics modifier '{mod_name}' not found on '{obj.name}'")
+    schema_changed = bool(previous) and any(previous.get(k) != request[k] for k in ("domain", "preset_id", "bridge_mode"))
+    if schema_changed and not force_rebuild:
+        raise ValueError("Preset/domain changes require an explicit force_rebuild; the authored graph is unchanged")
+    if op == "parameters" and force_rebuild:
+        raise ValueError("Use build with force_rebuild for an explicit graph replacement")
 
-    # build / update / adopt
-    subgroups = pnw_subgroups.ensure_all_subgroups(force_rebuild=force_rebuild)
-    safe_obj = obj.name.replace(" ", "_")
-    safe_mod = mod_name.replace(" ", "_")
-    core_name = f"PNW_Core_{safe_obj}_{safe_mod}"
-    wrapper_name = f"PNW_Wrapper_{safe_obj}_{safe_mod}"
-
-    if mod is None:
-        mod = obj.modifiers.new(mod_name, "NODES")
-
-    # Preserve previous state hash to detect parameter/graph invalidation
-    prev_state = {}
-    if obj_state_key in obj:
-        try:
-            prev_state = json.loads(obj[obj_state_key])
-        except (TypeError, json.JSONDecodeError):
-            prev_state = {}
-
-    core = _build_core_tree(core_name, obj, request, subgroups, force_rebuild=force_rebuild)
-    wrapper, wrapper_manual_edited = _build_or_preserve_wrapper(wrapper_name, core, force_rebuild=force_rebuild)
-
-    if mod.node_group != wrapper:
+    old_wrapper = mod.node_group if mod else None
+    preserved = old_wrapper is not None and not force_rebuild
+    if preserved:
+        wrapper = old_wrapper
+        # Parameters belong to the modifier, while all nested authored graphs
+        # belong to this workflow. Copy on shared ownership before any update.
+        if wrapper.users > 1:
+            wrapper = _copy_graph(wrapper)
+            mod.node_group = wrapper
+        core_node = wrapper.nodes.get("PNW_CoreNode")
+        core = core_node.node_tree if core_node is not None else None
+        if core is None:
+            raise ValueError("Managed Core reference is missing; preserving graph without parameter changes")
+    else:
+        # Fresh names are display labels only. Datablock references establish
+        # identity, so spaces, underscores, renames and duplicate objects cannot
+        # alias one another's core.
+        token = uuid.uuid4().hex[:12]
+        groups = pnw_subgroups.ensure_all_subgroups(force_rebuild=False)
+        if request["preset_id"] == pnw_box_tipping.PRESET_ID:
+            groups.update(pnw_box_tipping.ensure_box_subgroups(force_rebuild=False))
+        core = _build_core_tree(f"PNW_Core_{token}", obj, request, groups)
+        copies = {}
+        for node in core.nodes:
+            nested = getattr(node, "node_tree", None)
+            if nested is not None:
+                node.node_tree = _copy_graph(nested, copies)
+        wrapper, _ = _build_or_preserve_wrapper(f"PNW_Wrapper_{token}", core)
+        if mod is None:
+            mod = obj.modifiers.new(mod_name, "NODES")
+        if old_wrapper is not None:
+            old_wrapper.use_fake_user = True
         mod.node_group = wrapper
 
+    previous_hash = previous.get("parameters_hash")
+    changed = force_rebuild or (previous_hash is not None and previous_hash != request["parameters_hash"])
+    if changed:
+        pnw_bake.invalidate_cache(obj, mod, None)
     apply_request_parameters(obj, mod, request)
-
-    # Apply explicit bridge if bridge_mode != GN_NATIVE
-    col_obj = bpy.data.objects.get(request["collider_object"]) if request.get("collider_object") else None
-    bridge_info = pnw_bridge.apply_bridge(obj, request, collider_obj=col_obj)
-
     graph_fp = pnw_subgroups.tree_fingerprint(core)
-    cache_invalidated = False
-    if prev_state and (
-        prev_state.get("parameters_hash") != request["parameters_hash"]
-        or prev_state.get("graph_fingerprint") != graph_fp
-        or prev_state.get("preset_id") != request["preset_id"]
-    ):
-        pnw_bake.invalidate_cache(obj, mod, request.get("bake_directory") or mod.bake_directory or None)
-        cache_invalidated = True
-
-    state = {
+    obj[key] = json.dumps({
         "schema_version": request["schema_version"],
-        "domain": request["domain"],
-        "preset_id": request["preset_id"],
+        "domain": request["domain"], "preset_id": request["preset_id"],
         "bridge_mode": request["bridge_mode"],
-        "parameters": request["parameters"],
-        "parameters_hash": request["parameters_hash"],
-        "graph_fingerprint": graph_fp,
-        "core_name": core.name,
-        "wrapper_name": wrapper.name,
-    }
-    obj[obj_state_key] = json.dumps(state, ensure_ascii=False)
-
-    edited_subgroups = [
-        name for name, sg in subgroups.items() if pnw_subgroups.is_tree_manually_edited(sg)
-    ]
-
+        "parameters": request["parameters"], "parameters_hash": request["parameters_hash"],
+        "graph_fingerprint": graph_fp, "core_name": core.name, "wrapper_name": wrapper.name,
+        "implementation_version": IMPLEMENTATION_VERSION,
+    }, ensure_ascii=False, allow_nan=False)
     return {
-        "mode": op,
-        "wrapper_name": wrapper.name,
-        "core_name": core.name,
-        "subgroup_names": list(subgroups.keys()),
-        "edited_subgroups_preserved": edited_subgroups,
-        "manual_edits_preserved": wrapper_manual_edited or len(edited_subgroups) > 0,
-        "cache_invalidated_on_hash_change": cache_invalidated,
-        "bridge": bridge_info,
-        "parameters_hash": request["parameters_hash"],
-        "graph_fingerprint": graph_fp,
+        "mode": "parameters_only" if op == "parameters" else op,
+        "wrapper_name": wrapper.name, "core_name": core.name,
+        "manual_edits_preserved": preserved,
+        "previous_wrapper_retained": old_wrapper.name if force_rebuild and old_wrapper else None,
+        "cache_invalidated_on_hash_change": changed,
+        "bridge": {"bridge_mode": "GN_NATIVE", "applied": False},
+        "parameters_hash": request["parameters_hash"], "graph_fingerprint": graph_fp,
     }

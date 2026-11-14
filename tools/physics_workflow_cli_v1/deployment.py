@@ -23,10 +23,20 @@ def core_directory() -> Path:
 
 
 def addon_directory() -> Path:
-    path = project_root() / "tools" / "physics_nodes_workflow_addon"
-    if not path.is_dir() or not (path / "__init__.py").is_file():
-        raise RuntimeError(f"Physics Nodes addon directory missing: {path}")
-    return path
+    configured = os.environ.get("PHYSICS_WORKFLOW_ADDON_DIR")
+    candidates = []
+    if configured:
+        candidates.append(Path(configured))
+    # Production checkout: <root>/tools/physics_workflow_cli_v1 and
+    # <root>/tools/physics_nodes_workflow_addon are siblings.  The audit copy
+    # keeps the same sibling relationship directly below shard-cli.
+    candidates.append(Path(__file__).resolve().parent.parent / "physics_nodes_workflow_addon")
+    candidates.append(project_root() / "tools" / "physics_nodes_workflow_addon")
+    for path in candidates:
+        path = path.resolve(strict=False)
+        if path.is_dir() and (path / "__init__.py").is_file():
+            return path
+    raise RuntimeError("Physics Nodes addon directory missing; checked: " + ", ".join(str(p) for p in candidates))
 
 
 def default_blender_binary(require_exists: bool = True) -> Path:
@@ -35,15 +45,26 @@ def default_blender_binary(require_exists: bool = True) -> Path:
         p = Path(env_bin)
         if not require_exists or p.is_file():
             return p
-    candidate = project_root() / "runtime" / "blender" / "releases" / "5.2.1" / "blender-5.2.1-windows-x64" / "blender.exe"
-    if candidate.is_file():
-        return candidate
+    relative = Path("runtime") / "blender" / "releases" / "5.2.1" / "blender-5.2.1-windows-x64" / "blender.exe"
+    candidates = [project_root() / relative]
+    # Keep the audit overlay self-locating without changing production layout.
+    for ancestor in list(project_root().parents)[:5]:
+        candidate = ancestor / relative
+        if candidate not in candidates:
+            candidates.append(candidate)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
     on_path = shutil.which("blender")
     if on_path:
         return Path(on_path)
     if not require_exists:
         return Path(env_bin) if env_bin else Path("blender")
-    raise RuntimeError(f"Default Blender 5.2.1 binary not found at {candidate} (set BLENDER_PATH or BLENDERCTL_BLENDER)")
+    raise RuntimeError(
+        "Default Blender 5.2.1 binary not found; checked: "
+        + ", ".join(str(p) for p in candidates)
+        + " (set BLENDER_PATH or BLENDERCTL_BLENDER)"
+    )
 
 
 def import_addon_module(submodule: str | None = None):

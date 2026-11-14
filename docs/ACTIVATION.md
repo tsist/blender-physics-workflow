@@ -1,0 +1,9 @@
+# Whole-workflow rigid activation — 0.7.0-dev.1
+
+Choose Activation Frame in the rigid workbench or pass parameters.activation_frame. Value 0 enables immediate participation. Positive values are absolute scene frames, including for a bake range that starts later than frame 1. Waiting is implemented with native Simulation Output Skip; it preserves the previous state and bypasses force integration, contact correction, rotation update and constraints. The trigger frame executes the first normal time step, except that the bake start is always initialization. A trigger before or equal to the start therefore begins integration on the next frame. A trigger beyond the end leaves the whole group waiting.
+
+Only rigid_scatter accepts nonzero. The public parameter is an integer 0..100000, not a bool/string/float. The boolean pnw_active output follows POINT to INSTANCE and is included in existing v2 attribute evidence. Waiting is not the same as settled contact; zero speed alone cannot prove resting on a surface.
+
+Activation is for one entire workflow, not individual particles, collision wake-up or physical coupling between separate modifiers. Waiting groups are not automatically colliders for other workflows. Use explicit supported collider inputs when needed. CLI sweep candidates are independent comparisons, not simultaneous coupled simulations. Fractional-frame/motion-blur boundaries remain unverified.
+
+Changing the actual activation socket/default invalidates the prior cache. Bake applies current workbench values, but preserves an author's disconnected socket and node graph; actual graph values determine the solve. Use explicit Rebuild for pre-0.7 graphs so the new socket and Skip gate exist; the old graph is retained. A normal update cannot silently claim activation on a legacy graph. Existing cache generations are preserved and new work is baked into a new generation.
