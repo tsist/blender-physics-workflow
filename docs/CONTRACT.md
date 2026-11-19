@@ -1,4 +1,4 @@
-# Physics workflow contract — 0.8.1-dev.1
+# Physics workflow contract — 0.8.1-dev.2
 
 `BLENDER_PHYSICS_WORKFLOW_CONTRACT_V1`, request schema_version 1.0. Query `cli.py describe` for parameter defaults, limits and capabilities.
 

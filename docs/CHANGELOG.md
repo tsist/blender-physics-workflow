@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1-dev.2
+
+Qualify the extension and CLI on Windows Blender 5.3.0 with rigid and particle bake and reopen checks. Prefer portable 5.3.0 when both verified Blender versions exist under the same project directory. Keep the existing authored graph version and support explicit runtime selection.
+
 ## 0.8.1-dev.1
 
 Separate evaluated mesh-to-ground measurements from instance origins. Report unavailable motion as null for empty, single-frame or incomparable output. Observe real solver sleep and validate velocity/contact attributes per component. Clear stale UI success after a failed inspection. Existing 0.8 caches remain readable in the verified compatibility case.

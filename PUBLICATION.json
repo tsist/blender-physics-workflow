@@ -1,12 +1,12 @@
 {
   "repository": "blender-physics-workflow",
-  "release": "0.8.1-dev.1",
-  "addon": "0.8.1-dev.1",
-  "cli": "0.8.1-dev.1",
-  "skill": "0.8.1-dev.1",
+  "release": "0.8.1-dev.2",
+  "addon": "0.8.1-dev.2",
+  "cli": "0.8.1-dev.2",
+  "skill": "0.8.1-dev.2",
   "release_status": "development_prerelease",
-  "blender_baseline": "5.2.1 LTS (build 9e2066aef7ef)",
-  "runtime_identity": "e32fce362263b8b3ec2dfad68d96fd2ce82d7fa5666e7f0e4bcc114b7d02a924",
+  "blender_baseline": "Windows Blender 5.3.0 (02f0899d78e3) and 5.2.1 LTS (9e2066aef7ef)",
+  "runtime_identity": "899df567a9c72b9d36c4b296a882626d6e85e1c0f2c33569e377ad2fa6bbcf94",
   "runtime_files": 38,
   "license": "GPL-3.0-or-later",
   "files": [
@@ -32,12 +32,12 @@
     },
     {
       "file": "docs/CHANGELOG.md",
-      "sha256": "fbd488c53115423d6e48d1bf86a6eff28f1c200eb801917acaca8d60695efa6a",
-      "bytes": 3136
+      "sha256": "9de9d234cbee6d3dc481ff19cfa3c76b896bb0f58611347873282737b3db1044",
+      "bytes": 3439
     },
     {
       "file": "docs/CONTRACT.md",
-      "sha256": "514917340e5c82ad9ef82df0a0fc212931ca3a93433492d6a4b4a264b7ead65d",
+      "sha256": "fafde7fa29ba689e1321a231cb8a4ba9ef453278e2b9b90c70608b6205686bcd",
       "bytes": 5591
     },
     {
@@ -62,8 +62,8 @@
     },
     {
       "file": "docs/VALIDATION.md",
-      "sha256": "18efef75de0ff08ed1ac81e49c04a2cf588e36d09f8acbcbbe53a0f5d1a9e0bc",
-      "bytes": 7942
+      "sha256": "66518361996500c42a9fd082188f62538ffe267bf71264ee187846a336ac4473",
+      "bytes": 8748
     },
     {
       "file": "examples/cloth_banner_wind.json",
@@ -87,13 +87,13 @@
     },
     {
       "file": "README.md",
-      "sha256": "e34a9e829fefec38f7f16a4e1b11652edb34155df60343ace220070ae24ce82b",
-      "bytes": 4744
+      "sha256": "3d33d42bb5e462197ec1131d5f744680f304b902cd212b7ecfc3206f7842bcdd",
+      "bytes": 4829
     },
     {
       "file": "README.zh-CN.md",
-      "sha256": "08eeaf8ed05b9b958c4e48d93c934502219e1f70f9d6c47470d869eb6a325ad3",
-      "bytes": 4098
+      "sha256": "1a672d683f5204f2875ca756ec1d46d9096e9d75a26b623ec1ff37df35eef25b",
+      "bytes": 4185
     },
     {
       "file": "scripts/build_release.py",
@@ -112,13 +112,13 @@
     },
     {
       "file": "skills/blender-physics-workflow/SKILL.md",
-      "sha256": "ce8c6c9b049753fd932266d7a45180c1ed87b95c93e78662747f892932f250bf",
-      "bytes": 19814
+      "sha256": "ed43a4dd5ad400a5cea4f28dd734e64a581eed1b9bbc86db70cbaf8cd1891e91",
+      "bytes": 19851
     },
     {
       "file": "skills/manifest.json",
-      "sha256": "4c839648a16f0752edd956d243dd391f520adfdfd6e1b1baea097b2e637c078f",
-      "bytes": 334
+      "sha256": "158454dec89aabaa374d295ffc6a9386783365c0c418576b7751713ad1598c1a",
+      "bytes": 361
     },
     {
       "file": "skills/README.md",
@@ -397,8 +397,8 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/__init__.py",
-      "sha256": "5e9e5776d2b8bd2e56b57c53a2f78243ebe8ef37a64af989671e62e09815ba66",
-      "bytes": 6477
+      "sha256": "9c54423aad14b56a7e211e2756bd96edca64c41894bf51f542d87530ec3de4ec",
+      "bytes": 6491
     },
     {
       "file": "tools/physics_nodes_workflow_addon/animation_identity.py",
@@ -417,7 +417,7 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/blender_manifest.toml",
-      "sha256": "62eaebdcf156edb4401f456420f5f373eea7d051431332d9643d803280868ab1",
+      "sha256": "c9552ee8eb0d106bc4f4af4f32fbc56b6acea9742769881fee04aa076dbba99e",
       "bytes": 359
     },
     {
@@ -432,8 +432,8 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/capabilities.py",
-      "sha256": "2ed8ee8b8dbbb97d4c600b36867964b0251850873f0fcbd3de7c43c33b6a19c1",
-      "bytes": 5287
+      "sha256": "b0ca8bd2fcf358205f9bd95b48116c6146cbd1dfdd3ebc89a1df96fd6b9298ef",
+      "bytes": 5408
     },
     {
       "file": "tools/physics_nodes_workflow_addon/contract.py",
@@ -442,8 +442,8 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/core.py",
-      "sha256": "02fdd5e0ce0a11ac532ca43061c5d2ed3b9fd6e330cbde6ec34485e8de758a1d",
-      "bytes": 51236
+      "sha256": "d57411f886a36ac66fcbc82bf9f5bf4102bf2dce174a8f083d6c6e070967aeae",
+      "bytes": 51254
     },
     {
       "file": "tools/physics_nodes_workflow_addon/deformation.py",
@@ -522,13 +522,13 @@
     },
     {
       "file": "tools/physics_workflow_cli_v1/cli.py",
-      "sha256": "0cd2d093eb655150043c708eb4b4595a07b8df913cb1a70ed6fb3c15c1de9b97",
-      "bytes": 5750
+      "sha256": "622431e151682c9bc1fb6132b1ebca8c9210099420ce1be80c5b1c5271f8c3e4",
+      "bytes": 5764
     },
     {
       "file": "tools/physics_workflow_cli_v1/deployment.py",
-      "sha256": "32a283695a83539116948a898f71b654af61787f3e036c29514da3e279d9dc49",
-      "bytes": 2991
+      "sha256": "62a6a13b73ebae8c69fad818567820644aa9a83ddb54fd4ae9a756d83d85b1b4",
+      "bytes": 2836
     },
     {
       "file": "tools/physics_workflow_cli_v1/geometry_evidence.py",

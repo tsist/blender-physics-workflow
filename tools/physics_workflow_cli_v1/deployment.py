@@ -45,13 +45,12 @@ def default_blender_binary(require_exists: bool = True) -> Path:
         p = Path(env_bin)
         if not require_exists or p.is_file():
             return p
-    relative = Path("runtime") / "blender" / "releases" / "5.2.1" / "blender-5.2.1-windows-x64" / "blender.exe"
-    candidates = [project_root() / relative]
-    # Keep the audit overlay self-locating without changing production layout.
-    for ancestor in list(project_root().parents)[:5]:
-        candidate = ancestor / relative
-        if candidate not in candidates:
-            candidates.append(candidate)
+    root = project_root()
+    candidates = [
+        directory / "runtime" / "blender" / "releases" / version / f"blender-{version}-windows-x64" / "blender.exe"
+        for directory in (root, *list(root.parents)[:5])
+        for version in ("5.3.0", "5.2.1")
+    ]
     for candidate in candidates:
         if candidate.is_file():
             return candidate
@@ -61,7 +60,7 @@ def default_blender_binary(require_exists: bool = True) -> Path:
     if not require_exists:
         return Path(env_bin) if env_bin else Path("blender")
     raise RuntimeError(
-        "Default Blender 5.2.1 binary not found; checked: "
+        "Blender executable not found; checked: "
         + ", ".join(str(p) for p in candidates)
         + " (set BLENDER_PATH or BLENDERCTL_BLENDER)"
     )

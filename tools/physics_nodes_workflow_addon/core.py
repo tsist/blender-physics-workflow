@@ -13,7 +13,7 @@ from . import box_tipping as pnw_box_tipping
 from . import bridge as pnw_bridge
 from . import softbody as pnw_softbody
 from . import subgroups as pnw_subgroups
-from .capabilities import IMPLEMENTATION_VERSION
+from .capabilities import GRAPH_IMPLEMENTATION_VERSION
 
 
 ROLE_KEY = "pnw_role"
@@ -909,7 +909,7 @@ def build_or_update_workflow(obj: bpy.types.Object, request: dict[str, Any]) -> 
         raise ValueError(f"Modifier '{mod_name}' is not a managed physics node workflow")
     if mod and mod.node_group.get(ROLE_KEY) != "wrapper":
         raise ValueError("Refusing to overwrite an unowned node graph; use a new modifier name")
-    if mod and previous.get("implementation_version") != IMPLEMENTATION_VERSION and not force_rebuild:
+    if mod and previous.get("implementation_version") != GRAPH_IMPLEMENTATION_VERSION and not force_rebuild:
         raise ValueError("LEGACY_WORKFLOW: keep the authored graph or explicitly rebuild into a new retained copy with force_rebuild=True")
     if op == "parameters" and mod is None:
         raise ValueError(f"Physics modifier '{mod_name}' not found on '{obj.name}'")
@@ -965,7 +965,7 @@ def build_or_update_workflow(obj: bpy.types.Object, request: dict[str, Any]) -> 
         "bridge_mode": request["bridge_mode"],
         "parameters": request["parameters"], "parameters_hash": request["parameters_hash"],
         "graph_fingerprint": graph_fp, "core_name": core.name, "wrapper_name": wrapper.name,
-        "implementation_version": IMPLEMENTATION_VERSION,
+        "implementation_version": GRAPH_IMPLEMENTATION_VERSION,
     }, ensure_ascii=False, allow_nan=False)
     return {
         "mode": "parameters_only" if op == "parameters" else op,

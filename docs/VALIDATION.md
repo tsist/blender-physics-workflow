@@ -1,6 +1,12 @@
-# Validation — 0.8.1-dev.1
+# Validation — 0.8.1-dev.2
 
-Verified environment: Windows x64, Blender 5.2.1 LTS build 9e2066aef7ef. These cases qualify workflow behavior, not the whole product's physical or visual quality.
+## Blender 5.3.0 compatibility
+
+On Windows x64 Blender 5.3.0 (`02f0899d78e3`), the installable extension was enabled in an isolated profile and checked after a separate launch. The public CLI created and baked an 80-frame rigid fixture, verified its saved output in an independent process, inspected contact and sleep data, and resumed the completed job. A 12-frame particle fixture produced an SDF surface and reopened from disk cache with equal geometry and particle counts on nonsequential frames. The prior 5.2.1 build (`9e2066aef7ef`) retains the established solver baselines below. The authored graph version is preserved for this compatibility update. Build-bound caches should be baked and verified in their target Blender version.
+
+The 5.3 verification covers these fixtures on Windows. Large scenes, export formats, viewport interaction and other solver combinations retain the version boundaries of their original validation.
+
+## Blender 5.2.1 evidence
 
 | Area | Evidence and observed behavior |
 |---|---|

@@ -1,4 +1,4 @@
-"""Blender 5.2.1 LTS Physics Nodes Workflow Addon.
+"""Physics Nodes Workflow Addon for Blender 5.3.0 and 5.2.1 LTS.
 
 Provides modular Geometry Nodes physics node group assets, an interactive N-panel
 workbench, disk bake cache hashing/invalidation, and a shared deterministic

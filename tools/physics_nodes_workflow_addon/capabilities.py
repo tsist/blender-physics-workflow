@@ -1,7 +1,9 @@
 """Workflow availability and solver quality are separate product dimensions."""
 from __future__ import annotations
 
-IMPLEMENTATION_VERSION = "0.8.1-dev.1"
+IMPLEMENTATION_VERSION = "0.8.1-dev.2"
+# The 5.3 compatibility release retains the existing authored graph layout.
+GRAPH_IMPLEMENTATION_VERSION = "0.8.1-dev.1"
 QUALITY_NOTES = {
     "rigid_scatter": "Sphere proxies; 200-body container rest qualified, arbitrary dense stacks remain approximate",
     "cloth_rope": "XPBD edges, mesh bending/tearing; no self-collision",
