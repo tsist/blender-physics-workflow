@@ -1,4 +1,5 @@
 interface:
   display_name: "Blender Physics Workflow"
-  short_description: "Modular Geometry Nodes physics simulations, disk bake, and isolated CLI"
-  default_prompt: "Use $blender-physics-workflow to build, update, bake, and verify physics simulations."
+  short_description: "使用物理节点工作台与公共 CLI 制作、烘焙、导出并冷重开核验次级物理动态"
+  default_prompt: "先用 blenderctl.ps1 physics describe 核对可用预设与参数，在独立工作副本上先跑短帧小样再烘焙磁盘缓存并完成冷重开核验。"
+  default_prompt: "Use $blender-physics-workflow for this Blender workflow task."

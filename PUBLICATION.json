@@ -107,13 +107,28 @@
     },
     {
       "file": "skills/blender-physics-workflow/agents/openai.yaml",
-      "sha256": "0250b2e959278e2dfa2536446b649e36b16e335bf1972515e706c9bdf84c38af",
-      "bytes": 255
+      "sha256": "12b0fde5479237fc4b85ecc7cd2959469e77b46db57af70a19ad533cd0e91f35",
+      "bytes": 441
+    },
+    {
+      "file": "skills/blender-physics-workflow/references/cache-export-and-recovery.md",
+      "sha256": "6d766c0fc3ab7440c30cfddbd15a7047a752e14064c22b1ca51011b1b2aefadd",
+      "bytes": 6568
+    },
+    {
+      "file": "skills/blender-physics-workflow/references/solvers-and-setup.md",
+      "sha256": "33f0fe753852ea94282550948e1c49b2f9d5596fe0c7ed831c7957035d147246",
+      "bytes": 7235
+    },
+    {
+      "file": "skills/blender-physics-workflow/references/sources.md",
+      "sha256": "2aa6865799e49495b45db36ece8c24c5e4f54d6d4a166815d3b77e2d6a78e963",
+      "bytes": 2298
     },
     {
       "file": "skills/blender-physics-workflow/SKILL.md",
-      "sha256": "ed43a4dd5ad400a5cea4f28dd734e64a581eed1b9bbc86db70cbaf8cd1891e91",
-      "bytes": 19851
+      "sha256": "b0e0c9887f4cf6810ff3c060a098d48cb7c68622ac20afff09867391d3971093",
+      "bytes": 9019
     },
     {
       "file": "skills/manifest.json",
