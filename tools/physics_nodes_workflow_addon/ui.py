@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from typing import Any
 
 import bpy
@@ -22,12 +23,24 @@ from .capabilities import QUALITY_NOTES
 
 
 _BOX_TIPPING_PRESET = "rigid_box_tipping"
+_NATIVE_DOMAIN_PRESETS = {domain: preset for preset, domain in pnw_contract.NATIVE_FLUID_PRESETS.items()}
+_NATIVE_PATH_OPTIONS = {"OUTPUT_PATH", "PATH_SUPPORTS_BLEND_RELATIVE"} if bpy.app.version >= (5, 3, 0) else set()
+_NATIVE_ACTIONS = (
+    ("adopt", "Adopt Domain", "Attach a local fluid domain to the workbench"),
+    ("bake", "Bake Fluid Cache", "Bake into a new managed cache generation"),
+    ("inspect", "Inspect Fluid Domain", "Check the solver settings and cache evidence"),
+    ("invalidate_cache", "Detach Managed Cache", "Detach the active generation and retain its files"),
+    ("export", "Save Liquid Frame", "Save the evaluated liquid frame as an independent mesh"),
+    ("guide_density", "Build / Find Density Guide", "Create or find a density guide for this gas domain"),
+    ("export_density", "Export Density Sequence", "Export density using the current guide edits"),
+)
 
 
 def _preset_items(self, context):
     return [
         (pid, info["title"], info["description"])
         for pid, info in pnw_contract.PRESET_DEFINITIONS.items()
+        if pid not in _NATIVE_DOMAIN_PRESETS.values()
     ]
 
 
@@ -44,7 +57,7 @@ class PNW_ObjectSettings(bpy.types.PropertyGroup):
             ("GN_NATIVE", "GN Native (Modular)", "Modular Geometry Nodes Simulation + Repeat substeps"),
             ("XPBD_ASSET_BRIDGE", "XPBD Bridge (Reserved)", "Reserved adapter; GN cloth uses bundled XPBD internally"),
             ("BULLET_BRIDGE", "Bullet Bridge (Reserved)", "Reserved adapter, not implemented"),
-            ("MANTAFLOW_BRIDGE", "Mantaflow Bridge (Reserved)", "Reserved adapter, not implemented"),
+            ("MANTAFLOW_BRIDGE", "Mantaflow (Native Fluid panel)", "Manage an existing domain from the Native Fluid panel"),
         ],
         default="GN_NATIVE",
     )
@@ -124,6 +137,25 @@ class PNW_ObjectSettings(bpy.types.PropertyGroup):
     last_inspect_summary: StringProperty(name="Last Inspection", default="")
     last_export_summary: StringProperty(name="Last Export", default="")
     last_instance_summary: StringProperty(name="Prepared Instances", default="")
+    native_modifier_name: StringProperty(name="Fluid Modifier", default="")
+    native_cache_root: StringProperty(
+        name="Managed Cache Root", subtype="DIR_PATH", options=_NATIVE_PATH_OPTIONS, default="",
+        description="Optional parent for cache generations owned by this workbench",
+    )
+    native_export_path: StringProperty(
+        name="Output Blend", subtype="FILE_PATH", options=_NATIVE_PATH_OPTIONS, default="",
+    )
+    native_export_frame: IntProperty(
+        name="Frame (0 = Timeline)", min=0, default=0,
+        description="Use the current scene frame or enter a frame in the baked range",
+    )
+    native_guide_name: StringProperty(name="Density Guide", default="")
+    native_bypass: PointerProperty(name="Bypass Control", type=bpy.types.Object)
+    native_exit: PointerProperty(name="Exit Control", type=bpy.types.Object)
+    native_density_output: StringProperty(
+        name="VDB Output Directory", subtype="DIR_PATH", options=_NATIVE_PATH_OPTIONS, default="",
+    )
+    native_last_summary: StringProperty(name="Last Native Fluid Action", default="")
 
     def to_request(self, obj: bpy.types.Object, operation: str, bake: bool = False) -> dict[str, Any]:
         parameters = {
@@ -499,6 +531,238 @@ class PNW_OT_inspect_workflow(bpy.types.Operator):
         return _run_op(self, context, "inspect")
 
 
+def _fluid_modifiers(obj):
+    return [mod for mod in obj.modifiers if mod.type == "FLUID"] if obj is not None else []
+
+
+def _domain_modifier(obj):
+    selected = obj.pnw_settings.native_modifier_name
+    mods = [mod for mod in _fluid_modifiers(obj)
+            if mod.fluid_type == "DOMAIN" and mod.domain_settings is not None]
+    if selected:
+        return next((mod for mod in mods if mod.name == selected), None)
+    return mods[0] if len(mods) == 1 else None
+
+
+def _native_path(value):
+    if not value:
+        return None
+    if not bpy.data.filepath and value.startswith("//"):
+        raise ValueError("Save the Blender working file before using a relative path")
+    path = bpy.path.abspath(value)
+    if os.path.isabs(path):
+        return os.path.normpath(path)
+    if not bpy.data.filepath:
+        raise ValueError("Save the Blender working file or choose an absolute path")
+    return os.path.normpath(os.path.join(os.path.dirname(bpy.data.filepath), path))
+
+
+def _native_request(obj, mod, operation, scene_frame):
+    settings = obj.pnw_settings
+    domain = mod.domain_settings
+    preset = _NATIVE_DOMAIN_PRESETS.get(domain.domain_type)
+    if preset is None:
+        raise ValueError(f"Unsupported fluid domain type: {domain.domain_type}")
+    request = {
+        "schema_version": "1.0",
+        "operation": operation,
+        "bridge_mode": "MANTAFLOW_BRIDGE",
+        "preset_id": preset,
+        "target_object": obj.name,
+        "modifier_name": mod.name,
+        "parameters": {
+            "frame_start": domain.cache_frame_start,
+            "frame_end": domain.cache_frame_end,
+        },
+    }
+    if operation in {"adopt", "bake"} and settings.native_cache_root:
+        request["bake_directory"] = _native_path(settings.native_cache_root)
+    if operation == "export":
+        if domain.domain_type != "LIQUID":
+            raise ValueError("Select a liquid domain to save a mesh frame")
+        output = _native_path(settings.native_export_path)
+        if not output:
+            raise ValueError("Choose a new .blend output path")
+        request.update(
+            export_format="STATIC_MESH",
+            export_path=output,
+            export_frame=settings.native_export_frame or scene_frame,
+        )
+    if operation in {"guide_density", "export_density"}:
+        if domain.domain_type != "GAS":
+            raise ValueError("Select a gas domain to work with density")
+        guide = {}
+        if settings.native_guide_name.strip():
+            guide["guide_name"] = settings.native_guide_name.strip()
+        if operation == "guide_density" and (
+            not guide.get("guide_name") or bpy.data.objects.get(guide["guide_name"]) is None
+        ):
+            if settings.native_bypass is not None:
+                guide["bypass_object"] = settings.native_bypass.name
+            if settings.native_exit is not None:
+                guide["exit_object"] = settings.native_exit.name
+        elif operation == "export_density":
+            output = _native_path(settings.native_density_output)
+            if not output:
+                raise ValueError("Choose a new VDB output directory")
+            guide["output_directory"] = output
+        request["native_density"] = guide
+    return request
+
+
+def _native_summary(settings, result, action):
+    lines = [action]
+    inspection = result.get("inspection") or {}
+    if inspection:
+        status = inspection.get("cache_state", "unavailable")
+        lines.append(f"Cache: {status}")
+        issue = inspection.get("cache_error") or inspection.get("dependency_error")
+        if issue:
+            lines.append(issue.get("message", issue.get("code", "Check fluid inputs")))
+        flows = inspection.get("flows")
+        effectors = inspection.get("effectors")
+        if isinstance(flows, list) and isinstance(effectors, list):
+            lines.append(f"Flow objects: {len(flows)} | Colliders: {len(effectors)}")
+    bake = result.get("bake") or {}
+    if bake.get("generation"):
+        lines.append(f"Generation: {bake['generation']}")
+    if isinstance(bake.get("duration_seconds"), (float, int)):
+        lines.append(f"Bake time: {bake['duration_seconds']:.2f} s")
+    if (result.get("workflow") or {}).get("adopted") or bake.get("saved") is False:
+        lines.append("Save the work copy to keep its cache binding")
+    if (result.get("invalidate") or {}).get("detached"):
+        lines.append("Previous cache files retained")
+    exported = result.get("export") or {}
+    if exported.get("exported"):
+        lines.append(f"Static mesh frame: {exported.get('export_frame')}")
+    density = result.get("density") or {}
+    if density.get("guide_object"):
+        settings.native_guide_name = density["guide_object"]
+        lines.append(f"Guide: {density['guide_object']}")
+    if density.get("frame_count") is not None:
+        lines.append(f"Density frames: {density['frame_count']}")
+    return "\n".join(lines)
+
+
+class PNW_OT_native_fluid_action(bpy.types.Operator):
+    bl_idname = "pnw.native_fluid_action"
+    bl_label = "Run Native Fluid Action"
+    bl_options = {"REGISTER"}
+
+    operation: EnumProperty(name="Action", items=_NATIVE_ACTIONS, default="inspect")
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return (
+            obj is not None and obj.mode == "OBJECT"
+            and obj.library is None and obj.override_library is None
+            and _domain_modifier(obj) is not None
+        )
+
+    def execute(self, context):
+        from . import execute_request
+
+        obj = context.active_object
+        settings = obj.pnw_settings
+        modifier = _domain_modifier(obj)
+        try:
+            request = _native_request(obj, modifier, self.operation, context.scene.frame_current)
+        except ValueError as exc:
+            settings.native_last_summary = str(exc)
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        result = execute_request(request)
+        if not result.get("ok"):
+            error = result.get("error", {})
+            message = error.get("message", "Native fluid request failed")
+            if error.get("code"):
+                message = f"{error['code']}: {message}"
+            settings.native_last_summary = message
+            self.report({"ERROR"}, message)
+            return {"CANCELLED"}
+        title = next(title for action, title, _ in _NATIVE_ACTIONS if action == self.operation)
+        settings.native_last_summary = _native_summary(settings, result, title + " complete")
+        self.report({"INFO"}, settings.native_last_summary.splitlines()[0])
+        return {"FINISHED"}
+
+
+class PNW_PT_native_fluid(bpy.types.Panel):
+    bl_label = "Native Fluid"
+    bl_idname = "VIEW_3D_PT_pnw_native_fluid"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Physics Nodes"
+    bl_order = -10
+
+    @classmethod
+    def poll(cls, context):
+        return (
+            bpy.app.version >= (5, 3, 0) and bpy.app.build_options.fluid
+            and bool(_fluid_modifiers(context.active_object))
+        )
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        settings = obj.pnw_settings
+        mods = _fluid_modifiers(obj)
+        domains = [mod for mod in mods if mod.fluid_type == "DOMAIN"]
+        if not domains:
+            roles = ", ".join(dict.fromkeys(mod.fluid_type.title() for mod in mods))
+            layout.label(text=f"Fluid role: {roles}", icon="INFO")
+            layout.label(text="Select the domain object for cache and export")
+            return
+        if len(domains) > 1 or settings.native_modifier_name:
+            layout.prop_search(settings, "native_modifier_name", obj, "modifiers", text="Domain Modifier")
+        mod = _domain_modifier(obj)
+        if mod is None:
+            layout.label(text="Select a FLUID domain modifier", icon="INFO")
+            return
+        if obj.library is not None or obj.override_library is not None:
+            layout.label(text="Open a local scene copy to manage the domain", icon="INFO")
+            return
+
+        domain = mod.domain_settings
+        layout.label(text=f"{domain.domain_type.title()} domain · {mod.name}", icon="MOD_FLUIDSIM")
+        layout.label(text=f"Frames {domain.cache_frame_start}–{domain.cache_frame_end} · {domain.cache_type.title()}")
+        layout.label(text=f"Resolution Divisions: {domain.resolution_max}")
+        if not bpy.data.filepath:
+            layout.label(text="Save the project to manage caches", icon="INFO")
+        cache = layout.box()
+        cache.label(text="Fluid Cache", icon="DISK_DRIVE")
+        cache.prop(settings, "native_cache_root")
+        cache.operator("pnw.native_fluid_action", text="Adopt Domain").operation = "adopt"
+        row = cache.row(align=True)
+        row.operator("pnw.native_fluid_action", text="Bake").operation = "bake"
+        row.operator("pnw.native_fluid_action", text="Inspect").operation = "inspect"
+        cache.operator("pnw.native_fluid_action", text="Detach Managed Cache").operation = "invalidate_cache"
+
+        export = layout.box()
+        if domain.domain_type == "LIQUID":
+            export.label(text="Liquid Frame", icon="MESH_DATA")
+            export.prop(settings, "native_export_frame")
+            export.prop(settings, "native_export_path")
+            export.operator("pnw.native_fluid_action", text="Save Editable Mesh").operation = "export"
+        elif domain.domain_type == "GAS":
+            export.label(text="Density Guide & VDB Sequence", icon="VOLUME_DATA")
+            export.prop(settings, "native_guide_name")
+            if not settings.native_guide_name or context.scene.objects.get(settings.native_guide_name) is None:
+                export.prop(settings, "native_bypass")
+                export.prop(settings, "native_exit")
+            else:
+                export.label(text="Adjust controls on the guide object")
+            export.operator("pnw.native_fluid_action", text="Build / Find Guide").operation = "guide_density"
+            export.prop(settings, "native_density_output")
+            export.operator("pnw.native_fluid_action", text="Export Density Sequence").operation = "export_density"
+        if settings.native_last_summary:
+            status = layout.box()
+            status.label(text="Last Workbench Action")
+            for line in settings.native_last_summary.splitlines():
+                status.label(text=line)
+
+
 class PNW_PT_workbench(bpy.types.Panel):
     bl_label = "Physics Nodes Workbench"
     bl_idname = "VIEW_3D_PT_physics_nodes_workbench"
@@ -658,6 +922,8 @@ CLASSES = (
     PNW_OT_bake_cache,
     PNW_OT_invalidate_cache,
     PNW_OT_inspect_workflow,
+    PNW_OT_native_fluid_action,
+    PNW_PT_native_fluid,
     PNW_PT_workbench,
 )
 

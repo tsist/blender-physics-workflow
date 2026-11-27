@@ -1,13 +1,13 @@
 {
-  "bundle_version": "0.8.1-dev.2",
+  "bundle_version": "0.9.0-dev.2",
   "license": "GPL-3.0-or-later",
-  "addon_version": "0.8.1-dev.2",
-  "cli_version": "0.8.1-dev.2",
+  "addon_version": "0.9.0-dev.2",
+  "cli_version": "0.9.0-dev.2",
   "skills": [
     {
       "name": "blender-physics-workflow",
-      "source_guidance": "Physics Nodes Workflow v0.8.1-dev.2 (verified Windows Blender 5.3.0 and 5.2.1 LTS fixtures)",
-      "version": "0.8.1-dev.2"
+      "source_guidance": "Physics Nodes Workbench native fluids on Windows Blender 5.3.0; standalone Geometry Nodes CLI",
+      "version": "0.9.0-dev.2"
     }
   ]
 }

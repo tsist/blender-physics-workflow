@@ -30,6 +30,14 @@ OPERATIONS = (
 
 DOMAINS = ("rigid_scatter", "cloth_rope", "fluid_emission")
 
+NATIVE_FLUID_PRESETS = {"native_liquid": "LIQUID", "native_gas": "GAS"}
+NATIVE_FLUID_ACTIONS = (
+    "build", "adopt", "update", "parameters", "bake", "inspect",
+    "invalidate_cache", "export", "guide_density", "export_density",
+)
+NATIVE_INTEGER_SETTINGS = {"resolution_max": (16, 256), "timesteps_min": (1, 8), "timesteps_max": (1, 8)}
+NATIVE_FLOAT_SETTINGS = {"time_scale": (0.1, 3), "particle_radius": (0.25, 3), "flip_ratio": (0, 1)}
+
 BRIDGE_MODES = (
     "GN_NATIVE",
     "BULLET_BRIDGE",
@@ -382,6 +390,106 @@ def compute_parameters_hash(params: dict[str, Any], bridge_mode: str, preset_id:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _native_text(raw, key, *, required=False):
+    value = raw.get(key)
+    if value is None and not required:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise PhysicsContractError("VALIDATION_ERROR", f"{key} must be a nonempty string")
+    return value.strip()
+
+
+def _normalize_native_fluid(raw, preset_id, operation):
+    mode = raw.get("bridge_mode", "MANTAFLOW_BRIDGE")
+    if mode != "MANTAFLOW_BRIDGE" or raw.get("domain", "fluid_emission") != "fluid_emission":
+        raise PhysicsContractError("VALIDATION_ERROR", "Native fluid presets require the Mantaflow bridge")
+    if operation not in NATIVE_FLUID_ACTIONS:
+        raise PhysicsContractError("VALIDATION_ERROR", f"Unsupported native fluid action: {operation}")
+    if raw.get("bake") or raw.get("force_rebuild"):
+        raise PhysicsContractError("VALIDATION_ERROR", "Use the explicit bake action for an existing native fluid domain")
+    if raw.get("verify_cold_reopen"):
+        raise PhysicsContractError("VALIDATION_ERROR", "Save the work copy and verify it in a separate Blender process")
+    if any(raw.get(field) is not None for field in ("collider_object", "collider_collection", "instance_collection")):
+        raise PhysicsContractError("VALIDATION_ERROR", "Set native fluid flow and effector collections on the domain")
+
+    supplied = raw.get("parameters", {})
+    if not isinstance(supplied, dict) or supplied.keys() - {"frame_start", "frame_end"}:
+        raise PhysicsContractError("VALIDATION_ERROR", "Set native solver properties on the domain; pass only the frame range")
+    start = _require_strict_int(raw.get("frame_start", supplied.get("frame_start")), "frame_start", 1, 100000)
+    end = _require_strict_int(raw.get("frame_end", supplied.get("frame_end")), "frame_end", start, 100000)
+    params = {"frame_start": start, "frame_end": end}
+    tuning = raw.get("native_settings", {})
+    if not isinstance(tuning, dict) or (tuning and operation != "parameters"):
+        raise PhysicsContractError("VALIDATION_ERROR", "native_settings applies only to the parameters action")
+    edits = {}
+    for key, value in tuning.items():
+        if key in NATIVE_INTEGER_SETTINGS:
+            edits[key] = _require_strict_int(value, key, *NATIVE_INTEGER_SETTINGS[key])
+        elif key in NATIVE_FLOAT_SETTINGS and type(value) in (int, float):
+            if preset_id == "native_gas" and key in {"particle_radius", "flip_ratio"}:
+                raise PhysicsContractError("VALIDATION_ERROR", f"{key} requires a liquid domain")
+            edits[key] = _require_range(value, key, *NATIVE_FLOAT_SETTINGS[key])
+        elif key == "simulation_method" and preset_id == "native_liquid" and value in ("APIC", "FLIP"):
+            edits[key] = value
+        else:
+            raise PhysicsContractError("VALIDATION_ERROR", f"Invalid native solver setting: {key}")
+    fmt = raw.get("export_format", "NONE")
+    expected_format = "STATIC_MESH" if operation == "export" and preset_id == "native_liquid" else "NONE"
+    if fmt != expected_format or (operation == "export" and fmt != "STATIC_MESH"):
+        raise PhysicsContractError("VALIDATION_ERROR", "Native liquid frame export requires STATIC_MESH")
+    export_path = _native_text(raw, "export_path")
+    if export_path and (operation != "export" or not export_path.lower().endswith(".blend")):
+        raise PhysicsContractError("VALIDATION_ERROR", "Native liquid frame export uses a new .blend path")
+    frame = _require_strict_int(raw.get("export_frame", end), "export_frame", start, end)
+    if operation in {"guide_density", "export_density"}:
+        if preset_id != "native_gas":
+            raise PhysicsContractError("VALIDATION_ERROR", "Density actions require a native gas domain")
+        provided = raw.get("native_density", {})
+        if not isinstance(provided, dict):
+            raise PhysicsContractError("VALIDATION_ERROR", "native_density must be an object")
+        allowed = {"guide_name", "output_directory"}
+        if operation == "guide_density":
+            allowed.update(("bypass_object", "exit_object", "guide_strength"))
+        if provided.keys() - allowed:
+            raise PhysicsContractError("VALIDATION_ERROR", "Unknown or inapplicable native_density settings")
+        density = {key: _native_text(provided, key) for key in provided if key != "guide_strength"}
+        if "guide_strength" in provided:
+            strength = provided["guide_strength"]
+            if isinstance(strength, bool) or not isinstance(strength, (int, float)):
+                raise PhysicsContractError("VALIDATION_ERROR", "guide_strength must be numeric")
+            density["guide_strength"] = _require_range(strength, "guide_strength", 0, 1)
+        if operation == "export_density" and not density.get("output_directory"):
+            raise PhysicsContractError("VALIDATION_ERROR", "export_density requires output_directory")
+    else:
+        if raw.get("native_density") is not None:
+            raise PhysicsContractError("VALIDATION_ERROR", "native_density applies to gas guide and density export actions")
+        density = {}
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "contract_id": CONTRACT_ID,
+        "operation": operation,
+        "domain": "fluid_emission",
+        "preset_id": preset_id,
+        "bridge_mode": mode,
+        "target_object": _native_text(raw, "target_object", required=True),
+        "modifier_name": _native_text(raw, "modifier_name", required=True),
+        "bake": False,
+        "bake_directory": _native_text(raw, "bake_directory"),
+        "force_rebuild": False,
+        "verify_cold_reopen": raw.get("verify_cold_reopen", False),
+        "export_format": fmt,
+        "export_path": export_path,
+        "export_frame": frame,
+        "parameters": params,
+        "parameters_hash": compute_parameters_hash(
+            {**params, "native_settings": edits} if edits else params, mode, preset_id, None,
+        ),
+        "native_density": density,
+        "native_settings": edits,
+    }
+
+
 def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise PhysicsContractError("VALIDATION_ERROR", "Request payload must be a JSON object")
@@ -394,10 +502,12 @@ def normalize_request(raw: dict[str, Any]) -> dict[str, Any]:
         raise PhysicsContractError("VALIDATION_ERROR", f"Unsupported schema_version: {schema_version}")
 
     operation = str(raw.get("operation", "build")).strip()
+    preset_id = str(raw.get("preset_id", "rigid_drop_pack")).strip()
+    if preset_id in NATIVE_FLUID_PRESETS:
+        return _normalize_native_fluid(raw, preset_id, operation)
     if operation not in OPERATIONS:
         raise PhysicsContractError("VALIDATION_ERROR", f"Unsupported operation: {operation}")
 
-    preset_id = str(raw.get("preset_id", "rigid_drop_pack")).strip()
     if preset_id not in PRESET_DEFINITIONS:
         raise PhysicsContractError("VALIDATION_ERROR", f"Unknown preset_id: {preset_id}")
 
@@ -542,6 +652,16 @@ def describe_contract() -> dict[str, Any]:
         "bridge_modes": list(BRIDGE_MODES),
         "export_formats": list(EXPORT_FORMATS),
         "capabilities": capabilities.describe_capabilities(),
+        "native_fluid": {
+            "bridge_mode": "MANTAFLOW_BRIDGE",
+            "presets": NATIVE_FLUID_PRESETS.copy(),
+            "operations": list(NATIVE_FLUID_ACTIONS),
+            "tunable": {
+                "native_liquid": {**NATIVE_INTEGER_SETTINGS, **NATIVE_FLOAT_SETTINGS,
+                                  "simulation_method": ["APIC", "FLIP"]},
+                "native_gas": {**NATIVE_INTEGER_SETTINGS, "time_scale": NATIVE_FLOAT_SETTINGS["time_scale"]},
+            },
+        },
         "presets": {
             k: {
                 "domain": v["domain"],

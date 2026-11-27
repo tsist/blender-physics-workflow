@@ -8,6 +8,7 @@ request execution entrypoint for physics_workflow_cli_v1.
 from __future__ import annotations
 
 import traceback
+from pathlib import Path
 from typing import Any
 
 from . import contract as pnw_contract
@@ -30,12 +31,44 @@ if bpy is not None:
 bl_info = {
     "name": "Physics Nodes Workbench",
     "author": "Blender AI Pipeline",
-    "version": (0, 8, 1),
+    "version": (0, 9, 0),
     "blender": (5, 2, 0),
     "location": "View3D > UI > Physics Nodes",
     "description": "Modular Geometry Nodes Physics Node Library, Workbench, Disk Cache & CLI",
     "category": "Physics",
 }
+
+
+def _execute_native_request(obj, req, result):
+    from . import native_fluid
+
+    op = req["operation"]
+    try:
+        if op == "export":
+            result["export"] = pnw_export.export_workflow_result(obj, req)
+        elif op in {"guide_density", "export_density"}:
+            from . import native_density
+
+            params = req["parameters"]
+            evidence = native_fluid.require_cached_sequence(
+                obj, req, params["frame_start"], params["frame_end"], domain_type="GAS",
+            )
+            density_request = {
+                **req,
+                "native_density": {
+                    **req["native_density"],
+                    "source_directory": str(Path(evidence["cache_directory"]) / "data"),
+                },
+            }
+            try:
+                result["density"] = native_density.execute_request(obj, density_request)
+            except native_density.NativeDensityError as exc:
+                return {"ok": False, "error": {"code": exc.code, "message": exc.message}}
+        else:
+            result.update(native_fluid.execute(obj, req))
+        return result
+    except native_fluid.NativeFluidError as exc:
+        return {"ok": False, "error": {"code": exc.code, "message": exc.message}}
 
 
 def execute_request(raw_request: dict[str, Any]) -> dict[str, Any]:
@@ -68,6 +101,9 @@ def execute_request(raw_request: dict[str, Any]) -> dict[str, Any]:
             "target_object": obj.name,
             "modifier_name": mod_name,
         }
+
+        if req["preset_id"] in pnw_contract.NATIVE_FLUID_PRESETS:
+            return _execute_native_request(obj, req, result)
 
         if op in ("build", "update", "parameters", "adopt"):
             build_info = pnw_core.build_or_update_workflow(obj, req)

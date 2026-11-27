@@ -1,4 +1,6 @@
-# Physics workflow contract — 0.8.1-dev.2
+# Standalone Geometry Nodes CLI contract
+
+The bundled CLI executes the Geometry Nodes workflow. For Blender 5.3 Mantaflow liquid and gas, use the [Native Fluid panel](../skills/blender-physics-workflow/references/native-fluid.md).
 
 `BLENDER_PHYSICS_WORKFLOW_CONTRACT_V1`, request schema_version 1.0. Query `cli.py describe` for parameter defaults, limits and capabilities.
 

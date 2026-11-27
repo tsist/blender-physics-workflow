@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0-dev.2
+
+Add a Blender 5.3 Native Fluid panel to adopt authored Mantaflow liquid and gas domains, bake isolated cache generations, and inspect their state. Export an editable liquid frame, or reshape baked gas with an editable Geometry Nodes guide and deliver a density OpenVDB sequence. Keep the existing Geometry Nodes graph layout and standalone CLI contract. The companion skill covers bottle splash, cup fill and guided smoke. [Native fluid guide](../skills/blender-physics-workflow/references/native-fluid.md)
+
 ## 0.8.1-dev.2
 
 Qualify the extension and CLI on Windows Blender 5.3.0 with rigid and particle bake and reopen checks. Prefer portable 5.3.0 when both verified Blender versions exist under the same project directory. Keep the existing authored graph version and support explicit runtime selection.

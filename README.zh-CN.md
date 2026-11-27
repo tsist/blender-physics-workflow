@@ -1,11 +1,12 @@
-# Blender 物理工作流 — 0.8.1-dev.2
+# Blender 物理工作流 — 0.9.0-dev.2
 
-[English](README.md) · [下载](https://github.com/tsist/blender-physics-workflow/releases/tag/v0.8.1-dev.2) · [接口契约](docs/CONTRACT.md)
+[English](README.md) · [下载](https://github.com/tsist/blender-physics-workflow/releases/tag/v0.9.0-dev.2) · [接口契约](docs/CONTRACT.md)
 
-可编辑的几何节点物理工作台、供 AI 助手使用的配套技能，以及可选 CLI。已验 Windows 构建为 **Blender 5.3.0（02f0899d78e3）** 和 **5.2.1 LTS（9e2066aef7ef）**。[实测夹具与范围](docs/VALIDATION.md)本版以 **GPL-3.0-or-later** 开源，标记为开发预发布版。
+可编辑的物理工作台、供 AI 助手使用的配套技能，以及可选的几何节点 CLI。原生液体和烟气在 Windows **Blender 5.3.0（02f0899d78e3）** 验收。既有几何节点路线此前在该构建和 **5.2.1 LTS（9e2066aef7ef）** 完成代表场景验证。本版以 **GPL-3.0-or-later** 开源，标记为开发预发布版。[验证范围](docs/VALIDATION.md)
 
 ## 功能与适用范围
 
+- 接管、烘焙和检查已配置的 Mantaflow 域，输出可编辑的液体定格网格，或用控制体改型烟气并导出可渲染的密度 OpenVDB 序列。
 - 球代理刚体、布料与绳索、粒子发射及表面重建、弹性表面壳、平面箱体倾倒。
 - 可编辑节点、源对象保护、手改保留、磁盘烘焙、检查，以及静态网格、Alembic、表面 OpenVDB 导出。
 - CLI 参数扫描、批处理、状态查询、取消和基于完整输出校验的候选恢复。
@@ -13,26 +14,28 @@
 
 已验代表场景包括200球容器、2000球稀疏负载、10000顶点布料和52520实际粒子。它们不代表任意场景的性能或质量保证，详见[阶段验证](docs/STAGE-VALIDATION.md)和[诊断验证](docs/DIAGNOSTICS-VALIDATION.md)。
 
-粒子系统未实现压力或不可压缩流体；弹性壳不是实体体积软体。箱体倾倒只支持XZ平移、Y旋转和固定水平地面，不含箱体间碰撞。Bullet、Mantaflow桥接仍为预留接口。
+粒子系统未实现压力或不可压缩流体；弹性壳不是实体体积软体。箱体倾倒只支持XZ平移、Y旋转和固定水平地面，不含箱体间碰撞。旧的桥接标志仍为预留接口。Mantaflow 通过原生流体面板使用。
 
 ## 安装 Blender 插件
 
-1. 在发布页下载 `physics_nodes_workflow_addon-0.8.1-dev.2.zip`。
+1. 在发布页下载 `physics_nodes_workflow_addon-0.9.0-dev.2.zip`。
 2. 打开 Blender 的**编辑 → 偏好设置 → 获取扩展 → 菜单 → 从磁盘安装**，选择该ZIP；不要选源码包或技能包。
 3. 启用 **Physics Nodes Workbench**。选择目标对象，按 `N` 打开3D视图侧栏的 **Physics Nodes** 页签。
 4. 选择预设后执行 **Build / Update**。默认保护源对象并创建工作副本；随后 **Bake to Disk → Inspect Simulation**，保存工程。
+
+处理原生流体时，在 Blender 5.3 选择已设置的流体域，打开 **Physics Nodes → Native Fluid**。[域要求、三种制作方法与交接核验](skills/blender-physics-workflow/references/native-fluid.md)
 
 保留工程所需的受管缓存目录。旧图升级可能需要在工作副本上明确 **Rebuild**，旧图会保留；从v0.1.0迁移前先备份工程。安装新版本身不会重建旧图，也不会使旧缓存自动有效。
 
 ## 安装配套技能
 
-下载 `blender-physics-workflow-skill-0.8.1-dev.2.zip`，将其中的 `blender-physics-workflow` 文件夹放到助手的技能目录。Codex通常使用 `$CODEX_HOME/skills` 或 `~/.codex/skills`。也可直接查看仓库中的[技能正文](skills/blender-physics-workflow/SKILL.md)。
+下载 `blender-physics-workflow-skill-0.9.0-dev.2.zip`，将其中的 `blender-physics-workflow` 文件夹放到助手的技能目录。Codex通常使用 `$CODEX_HOME/skills` 或 `~/.codex/skills`。也可直接查看仓库中的[技能正文](skills/blender-physics-workflow/SKILL.md)。
 
-技能ZIP只包含操作说明，不包含可执行工具。还需克隆本仓库或解压 `blender-physics-workflow-0.8.1-dev.2-source.zip`，并告诉助手该源码目录。技能中的 `<REPO_ROOT>` 指这个目录，`docs/` 路径也相对于该目录。技能文件夹内附有许可证；技能不会自动安装Blender或插件。
+技能ZIP只包含操作说明，不包含可执行工具。还需克隆本仓库或解压 `blender-physics-workflow-0.9.0-dev.2-source.zip`，并告诉助手该源码目录。技能中的 `<REPO_ROOT>` 指这个目录，`docs/` 路径也相对于该目录。技能文件夹内附有许可证；技能不会自动安装Blender或插件。
 
 ## 可选 CLI
 
-插件与当前CLI均可独立运行，不需要另外获取blenderctl仓库。使用Python 3.12或3.13，并以 `BLENDER_PATH` 指定已验Blender程序，在源码目录执行以下命令。
+配套独立 CLI 运行几何节点预设。原生流体使用 Blender 插件面板。使用 Python 3.12或3.13，并以 `BLENDER_PATH` 指定已验Blender程序，在源码目录执行以下命令。
 
 ```powershell
 $env:BLENDER_PATH = 'C:/path/to/blender.exe'

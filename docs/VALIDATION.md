@@ -1,4 +1,10 @@
-# Validation — 0.8.1-dev.2
+# Validation
+
+## Native fluid — 0.9.0-dev.2
+
+Windows Blender 5.3.0 (02f0899d78e3) qualification covered a two-wing bottle splash with an editable frame, a fixed glass with an inflow shutoff and settling observation, and an editable gas guide with a 48-frame density VDB sequence. The checks covered retaining authored liquid mesh edits across a new cache generation and reading density frames out of order in a fresh Blender process. The included skill describes the domain setup and acceptance steps for these workflows; test scenes and caches are maintained separately. [Native fluid guide](../skills/blender-physics-workflow/references/native-fluid.md)
+
+## Geometry Nodes — 0.8.1-dev.2 baseline
 
 ## Blender 5.3.0 compatibility
 

@@ -111,9 +111,9 @@ def _realize_modifier(obj):
     return mod, group
 
 
-def _realized_mesh(obj):
+def _realized_mesh(obj, *, realize_instances=True):
     """Realize downstream without changing authored trees or simulation identity."""
-    mod, group = _realize_modifier(obj)
+    mod, group = _realize_modifier(obj) if realize_instances else (None, None)
     try:
         bpy.context.view_layer.update()
         dg = bpy.context.evaluated_depsgraph_get()
@@ -131,9 +131,33 @@ def _realized_mesh(obj):
                 raise
         return mesh
     finally:
-        obj.modifiers.remove(mod)
-        bpy.data.node_groups.remove(group)
-        bpy.context.view_layer.update()
+        if mod is not None:
+            obj.modifiers.remove(mod)
+            bpy.data.node_groups.remove(group)
+            bpy.context.view_layer.update()
+
+
+def _native_liquid_surface(obj, request, frame):
+    from . import native_fluid
+
+    evidence = native_fluid.require_cached_frame(obj, request, frame, domain_type="LIQUID")
+    bpy.context.scene.frame_set(frame)
+    mesh = _realized_mesh(obj, realize_instances=False)
+    if mesh is None:
+        raise native_fluid.NativeFluidError("NATIVE_LIQUID_SURFACE_MISSING", f"No liquid surface at frame {frame}")
+    # When Blender cannot read a mesh cache it can evaluate the original domain.
+    domain = obj.data
+    is_domain_shape = (
+        len(mesh.vertices) == len(domain.vertices)
+        and len(mesh.polygons) == len(domain.polygons)
+        and all((a.co - b.co).length_squared < 1e-14 for a, b in zip(mesh.vertices, domain.vertices))
+    )
+    if not mesh.polygons or is_domain_shape:
+        bpy.data.meshes.remove(mesh)
+        raise native_fluid.NativeFluidError(
+            "NATIVE_LIQUID_SURFACE_MISSING", f"Frame {frame} evaluates to empty geometry or to the domain boundary",
+        )
+    return mesh, evidence
 
 
 def _evaluated_mesh_counts(obj):
@@ -254,6 +278,10 @@ def export_workflow_result(obj: bpy.types.Object, request: dict[str, Any]) -> di
     value = request.get("export_path")
     if fmt in {"ALEMBIC", "OPENVDB"} and not value:
         raise ValueError(f"export_path is required for {fmt}")
+    if value and request.get("preset_id") == "native_liquid":
+        from . import native_fluid
+
+        value = str(native_fluid.assert_isolated_output(bpy.path.abspath(value)))
     path = _new_export_path(value) if value else None
     if path:
         export_delivery.ensure_new_manifest(path)
@@ -265,9 +293,14 @@ def export_workflow_result(obj: bpy.types.Object, request: dict[str, Any]) -> di
     active = bpy.context.view_layer.objects.active
     try:
         if fmt == "STATIC_MESH":
-            sampling_mode = _prepare_export_frame(obj, request, frame)
-            export_fidelity.check_prototype_materials(obj, request)
-            mesh = _realized_mesh(obj)
+            native_evidence = None
+            if request.get("preset_id") == "native_liquid":
+                mesh, native_evidence = _native_liquid_surface(obj, request, frame)
+                sampling_mode = "NATIVE_CACHED_DIRECT"
+            else:
+                sampling_mode = _prepare_export_frame(obj, request, frame)
+                export_fidelity.check_prototype_materials(obj, request)
+                mesh = _realized_mesh(obj)
             if mesh is None or not mesh.vertices:
                 if mesh is not None:
                     bpy.data.meshes.remove(mesh)
@@ -294,6 +327,9 @@ def export_workflow_result(obj: bpy.types.Object, request: dict[str, Any]) -> di
             }
             result["sampling_mode"] = sampling_mode
             result["preservation"] = preservation
+            if native_evidence is not None:
+                result["native_cache"] = native_evidence
+                preservation["native_cache_generation"] = native_evidence["generation"]
             preservation["static_object_name"] = static.name
             if path:
                 # save_as_mainfile(copy=True) is the supported full-scene export

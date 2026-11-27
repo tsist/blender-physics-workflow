@@ -210,13 +210,16 @@ def _append_existing_artifact(artifacts: list[str], value: Any) -> None:
 
 def describe() -> protocol.CommandResponse:
     contract = deployment.import_addon_module("contract")
+    cli_contract = contract.describe_contract()
+    cli_contract.pop("native_fluid", None)
     blender_bin = deployment.default_blender_binary(require_exists=False)
     return protocol.CommandResponse(
         ok=True,
         command="describe",
         job_id=protocol.new_job_id("desc"),
         data={
-            **contract.describe_contract(),
+            **cli_contract,
+            "native_fluid_entrypoint": "blender_addon_panel",
             "blender_binary": str(blender_bin),
             "addon_directory": str(deployment.addon_directory()),
             "default_memory_limit_mb": 4096,
@@ -357,6 +360,12 @@ def _run_single_impl(
         return _failure("run", job_id, "VALIDATION_ERROR", memory_error)
     if not isinstance(raw_request, dict):
         return _failure("run", job_id, "VALIDATION_ERROR", "Run request payload must be a JSON object")
+
+    if str(raw_request.get("preset_id", "")).strip() in getattr(contract, "NATIVE_FLUID_PRESETS", ()):
+        return _failure(
+            "run", job_id, "VALIDATION_ERROR",
+            "Native liquid and gas are available in the Blender add-on Native Fluid panel.",
+        )
 
     try:
         normalized = contract.normalize_request(raw_request)

@@ -1,8 +1,8 @@
 """Workflow availability and solver quality are separate product dimensions."""
 from __future__ import annotations
 
-IMPLEMENTATION_VERSION = "0.8.1-dev.2"
-# The 5.3 compatibility release retains the existing authored graph layout.
+IMPLEMENTATION_VERSION = "0.9.0-dev.2"
+# Native fluid support keeps the existing Geometry Nodes graph layout.
 GRAPH_IMPLEMENTATION_VERSION = "0.8.1-dev.1"
 QUALITY_NOTES = {
     "rigid_scatter": "Sphere proxies; 200-body container rest qualified, arbitrary dense stacks remain approximate",
@@ -24,7 +24,7 @@ def describe_capabilities():
         "internal_solver_state_compared": False,
         "pinning": "explicit_POINT_FLOAT_pnw_pinned",
         "legacy_migration": "explicit_force_rebuild_retains_previous_graph",
-        "native_bridges": "reserved_by_frozen_contract",
+        "native_bridges": "mantaflow_explicit_native_presets",
         "openvdb_export": "verified_surface_level_set_of_closed_world_mesh",
         "alembic_export": "realized_single_mesh_sequence",
         "export_delivery_schema": "pnw.export.delivery/1",
@@ -35,7 +35,15 @@ def describe_capabilities():
         "prototype_preparation": "explicit_local_static_mesh_snapshots_preserve_effective_slots",
         "prototype_snapshot_source": "provenance_only_no_live_sync",
         "prototype_snapshot_shaders": "shared_material_datablocks",
-        "native_volume_density_exported": False,
+        "native_volume_density_exported": True,
+        "native_fluid_candidate": {
+            "host_minimum": "5.3.0",
+            "domain_types": ["LIQUID", "GAS"],
+            "input": "existing_authored_fluid_domain",
+            "evidence": "scoped_by_operation",
+            "cache": "mantaflow_all_signed_generations_with_separate_archive",
+            "density": "fixed_openvdb_gas_float_fog_sequence",
+        },
         "fluid_particle_count": "actual_simulation_population_on_reconstructed_mesh_pnw_particle_count",
         "cloth_bending": "optional_native_cross_edge_constraint_for_mesh_faces",
         "cloth_tearing": "optional_native_strain_based_split_edges",
@@ -67,9 +75,9 @@ def describe_capabilities():
             {"id": "liquid_pressure", "owner": "plugin_solver", "status": "not_implemented",
              "blocks_unrelated_workflows": False,
              "detail": "Particle emission and surface reconstruction do not solve incompressibility"},
-            {"id": "native_bridges", "owner": "contract", "status": "reserved_interface",
+            {"id": "native_bridges", "owner": "contract", "status": "native_fluid_available",
              "blocks_unrelated_workflows": False,
-             "detail": "Bullet/Mantaflow adapter interfaces are reserved, not silently enabled"},
+             "detail": "Use a native liquid or gas preset to select Mantaflow; legacy bridge flags alone do not switch solvers."},
         ],
     }
 
