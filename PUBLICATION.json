@@ -1,13 +1,13 @@
 {
   "repository": "blender-physics-workflow",
   "release": "0.9.0-dev.2",
-  "addon": "0.9.0-dev.2",
+  "addon": "1.0.0-rc.1",
   "cli": "0.9.0-dev.2",
   "skill": "0.9.0-dev.2",
   "release_status": "development_prerelease",
   "blender_baseline": "Native Fluid: Windows Blender 5.3.0 (02f0899d78e3); prior Geometry Nodes qualification: Windows Blender 5.3.0 and 5.2.1 LTS",
-  "runtime_identity": "f9c58a056d03ab5c0eaf4f051220dfcc686d07c9227c110c418c8c335c14905a",
-  "runtime_files": 40,
+  "runtime_identity": "fa6eade498059f8cc9c558bdac7509bf353dc7b38b60a4edcd005ba6a1518e60",
+  "runtime_files": 42,
   "license": "GPL-3.0-or-later",
   "files": [
     {
@@ -24,6 +24,21 @@
       "file": ".gitignore",
       "sha256": "db9a57d334b78bc97acbfec28791b25e558a5998b40326b94541d8d1811a2fcc",
       "bytes": 58
+    },
+    {
+      "file": "LICENSE",
+      "sha256": "0b383d5a63da644f628d99c33976ea6487ed89aaa59f0b3257992deac1171e6b",
+      "bytes": 35821
+    },
+    {
+      "file": "README.md",
+      "sha256": "073b356d7784333009701a76f091be32f7828d44c0ff6200ed721df834ffc9fb",
+      "bytes": 5445
+    },
+    {
+      "file": "README.zh-CN.md",
+      "sha256": "12cc658bc682cac3146798faea4d9c708d72b1b9a32bfa203e5d881a0d101f92",
+      "bytes": 4698
     },
     {
       "file": "docs/ACTIVATION.md",
@@ -81,29 +96,24 @@
       "bytes": 568
     },
     {
-      "file": "LICENSE",
-      "sha256": "0b383d5a63da644f628d99c33976ea6487ed89aaa59f0b3257992deac1171e6b",
-      "bytes": 35821
-    },
-    {
-      "file": "README.md",
-      "sha256": "073b356d7784333009701a76f091be32f7828d44c0ff6200ed721df834ffc9fb",
-      "bytes": 5445
-    },
-    {
-      "file": "README.zh-CN.md",
-      "sha256": "12cc658bc682cac3146798faea4d9c708d72b1b9a32bfa203e5d881a0d101f92",
-      "bytes": 4698
-    },
-    {
       "file": "scripts/build_release.py",
       "sha256": "d7061390d34db7f86202dedf58fc88f7a14a97639989bd71ff6225dd9571a189",
       "bytes": 3480
     },
     {
       "file": "scripts/verify_release.py",
-      "sha256": "fdafd563c333ae0f0ffeffee03bed38e5c9d0bd028dd8a70bfc7d55b4d1f43d0",
-      "bytes": 5372
+      "sha256": "01f98b9935de0c8bcd86e989a610efe0681f4cf9fb50a0407282921301e41bdd",
+      "bytes": 5554
+    },
+    {
+      "file": "skills/README.md",
+      "sha256": "1d3912ab7168289ae903c809b0d25b9c20a676b631d77d66b30ee0e697accb13",
+      "bytes": 896
+    },
+    {
+      "file": "skills/blender-physics-workflow/SKILL.md",
+      "sha256": "74b88299c89c74269def6eb24b3c1cddea0d7c0445d55dcf1f777ab91a3d2a61",
+      "bytes": 9537
     },
     {
       "file": "skills/blender-physics-workflow/agents/openai.yaml",
@@ -112,38 +122,33 @@
     },
     {
       "file": "skills/blender-physics-workflow/references/cache-export-and-recovery.md",
-      "sha256": "14af82f2f2f007d241607ec51c6b80d94bf6f75b32735f9192a2cb3668efa6ed",
-      "bytes": 6644
+      "sha256": "c6be56ccf939bccc52a3d534368b869b2dc94ac74496ef82c21425b71285bb3d",
+      "bytes": 6590
     },
     {
       "file": "skills/blender-physics-workflow/references/native-fluid.md",
-      "sha256": "5e4d21fee23696bd2de6c77e091a8b3da8062624e09f809242249f1361512377",
-      "bytes": 4462
+      "sha256": "80167fa4f0a790aba32560f8824999192db1bc706a65e48cdda0b3e0cb5a5bef",
+      "bytes": 11381
+    },
+    {
+      "file": "skills/blender-physics-workflow/references/native-point-cache.md",
+      "sha256": "0cc20eb47b50d8b73edcc5f81e8073cdb4153c79cf7bc5e366d3b8aaa86c37d2",
+      "bytes": 2520
     },
     {
       "file": "skills/blender-physics-workflow/references/solvers-and-setup.md",
-      "sha256": "d574e91625d5bcc6e8baa3f4baad58696a9e27f4e8c06dda085e56a7fa1d2b43",
-      "bytes": 5939
+      "sha256": "27bf28b335b544c9854e12019efaa0fba4b08a98d9babf1fc548e575cf4cec0f",
+      "bytes": 7367
     },
     {
       "file": "skills/blender-physics-workflow/references/sources.md",
-      "sha256": "426bb289f7215d0c5ad046446e34431e638b6a7a74d0005de046989f0cc4a2d5",
-      "bytes": 1247
-    },
-    {
-      "file": "skills/blender-physics-workflow/SKILL.md",
-      "sha256": "49cb29d10bc32ac682dbb7f0d93a8a80cb21685d2452cc0cbfd6a32f64955d3f",
-      "bytes": 8739
+      "sha256": "503b342a02400b8bff9ce9ffb7c7af2a633092cd01489f9297ff9f91e0881b52",
+      "bytes": 2647
     },
     {
       "file": "skills/manifest.json",
-      "sha256": "97b0fef69a4277ee692e13595406dfe72e0d76e815990307c14774cea581b600",
-      "bytes": 363
-    },
-    {
-      "file": "skills/README.md",
-      "sha256": "1d3912ab7168289ae903c809b0d25b9c20a676b631d77d66b30ee0e697accb13",
-      "bytes": 896
+      "sha256": "884ed7c489f20620f35d1025505c5306883f46d42eefd8392292047cc0de8cf9",
+      "bytes": 362
     },
     {
       "file": "tests/alembic_case_export.py",
@@ -392,8 +397,8 @@
     },
     {
       "file": "tests/test_physics_workflow_contract.py",
-      "sha256": "934fdaa4c8c04c7ed5cd38de29b47f55b224b98aac9019e452ee85f15ca5243c",
-      "bytes": 5533
+      "sha256": "97e89e94fa55cd31ff8c601c5bbae08fcb75d3ee29b7d490aefd4830c4e95f9c",
+      "bytes": 4589
     },
     {
       "file": "tests/test_physics_workflow_job_control.py",
@@ -417,8 +422,103 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/__init__.py",
-      "sha256": "4e2f8ff3159565f60ede4eaaef5451b6dd376f5110e574905bffd36a7190579c",
-      "bytes": 7903
+      "sha256": "edee0cb0a8185fa7d3247eeb3b8107d195a32828f6f9c76072b953a154f102e4",
+      "bytes": 8491
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/__init__.py",
+      "sha256": "45817192185bb89c37e55f05172d3a069dcea26815f0619c796aea1141dbb305",
+      "bytes": 1441
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/hud_overlay.py",
+      "sha256": "5c8c441cfe6b5486c458ed8787530ba43a7713f2323787c5f8ccb774e36fbebb",
+      "bytes": 10895
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons.py",
+      "sha256": "b0e9ff36dda9a13d932dbe84e0fbbd7f1ab7ed4b019483a5b7a75d3be1e95be2",
+      "bytes": 3111
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/brand_physics_32.png",
+      "sha256": "003b194310ee92cd02853cf065b8f3dd5e871b7ee52876a8681575c01725e045",
+      "bytes": 2272
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/brand_physics_64.png",
+      "sha256": "5edd6bc888cd4ebbe7d70da26228c21f231c19a44f85f42b81923eba8446500a",
+      "bytes": 6301
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/physics_bullet_fracture_32.png",
+      "sha256": "1fda34bcaaa28af14a15937c1ce8052ad3f99020f19ce77469b95450351be90f",
+      "bytes": 937
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/physics_cloth_sim_32.png",
+      "sha256": "73c235b8ddf3ac03c5efe67f99c422db4f7bb56916ab7adf29ea17bf4248ad81",
+      "bytes": 975
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/physics_fluid_domain_32.png",
+      "sha256": "16a6f491f96f8eeafd8d2cbb248a625983fb57aff179c679acaf4d95c4a19a78",
+      "bytes": 621
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/physics_gn_physics_32.png",
+      "sha256": "71907cb6e2058ff83c95be40b4afe0388637fba2e890cbed59d125c0892a5d8f",
+      "bytes": 886
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/status_error_32.png",
+      "sha256": "0a9a87ad97c82a9729b59079ce67fbe3166611738619e4d4ec9ab70ba3132752",
+      "bytes": 704
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/status_info_32.png",
+      "sha256": "57e4325f1f045ac8414d00d308462d982d2c3571284f135ec72b234d4cf31149",
+      "bytes": 698
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/status_ok_32.png",
+      "sha256": "6af6193c52c8b4c2df5f9dbf38ed43d5680ce3ca567626ec10d7d9689074304c",
+      "bytes": 824
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/status_running_32.png",
+      "sha256": "f1c5d82ed8f87d8859c14da5d1b8f137801ae873f8b37b6ad52119645fe897cb",
+      "bytes": 821
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/status_safe_32.png",
+      "sha256": "a79fc1d8e65fdb0985b6397254e00323112905cbe4c56eda782c842b10d8dece",
+      "bytes": 723
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/icons/status_warn_32.png",
+      "sha256": "b0dd7fbf27eeffc90e31136b681193eae447a3da6f30dc2233dbbda0355d9e51",
+      "bytes": 577
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/job_runner.py",
+      "sha256": "c6444283c0db59297b051f7e2742b8cec4f2065eac37befa70ef1ecf1e3ed6e4",
+      "bytes": 8128
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/layout_kit.py",
+      "sha256": "8667077d9f6724a3f546fddf7a3e9b30dd867d8c5e91d92a3b7762760b7ea635",
+      "bytes": 8427
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/sidebar_dock.py",
+      "sha256": "2f7828bb48be41983dc75b32c60495fcf840b05b51484feea5e0970dc0266572",
+      "bytes": 25879
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/_ui_kit/theme_tokens.py",
+      "sha256": "2d3035966030d949629190a54c4a7eb60705487409bd6f31bd0652b976905900",
+      "bytes": 11791
     },
     {
       "file": "tools/physics_nodes_workflow_addon/animation_identity.py",
@@ -437,33 +537,53 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/blender_manifest.toml",
-      "sha256": "e0bb0cfdbc1e462a9561388c65040198ee339f467bf9da44c0596985facd18ca",
-      "bytes": 359
+      "sha256": "4a6656761e142c106f4a56e9b0d9621f0cf366bf4681c04d6a2f864f6d1b73be",
+      "bytes": 350
     },
     {
       "file": "tools/physics_nodes_workflow_addon/box_tipping.py",
-      "sha256": "5bd8941e20a4d65eec56b221033269d7e24beaffe693e357f7c346e53373e706",
-      "bytes": 27218
+      "sha256": "2a8269ad158fa8677631c8a91a25d82d957a9e6ae6d90afaea2dd5fe627ee7e1",
+      "bytes": 26628
     },
     {
       "file": "tools/physics_nodes_workflow_addon/bridge.py",
-      "sha256": "fa79abc9d7c88b81ed23c18e01dba983addecdd4cb23fdd143a3ad10ddc4d3f7",
-      "bytes": 949
+      "sha256": "6138c34dfc43939fa24f062bf75b1cdd7ef2616357cc1ac065011ecdaff72900",
+      "bytes": 18228
     },
     {
       "file": "tools/physics_nodes_workflow_addon/capabilities.py",
-      "sha256": "23cc295936dee36829d901d0cded6f7b9ee5e1c957a4d13e71bc2dc0a5b33316",
-      "bytes": 5820
+      "sha256": "f5b75e0c73f2ead37807878bc998165aa7fcad9209147e03f84c3a4ffe7ec572",
+      "bytes": 5827
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/cell_fracture/__init__.py",
+      "sha256": "8334d3d51d396d1d99ccc2b038934553f69e0641689186534beff7aa02c78d5d",
+      "bytes": 16763
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/cell_fracture/blender_manifest.toml",
+      "sha256": "3a5992cc01e354277794dadcc4453784e1d8dce993817d8ea880bc3dcd9b56f1",
+      "bytes": 409
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/cell_fracture/fracture_cell_calc.py",
+      "sha256": "28361a1a2cc14226deca0fb891a56fd8c45a32594c38d90f011089be2eedfd7f",
+      "bytes": 3457
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/cell_fracture/fracture_cell_setup.py",
+      "sha256": "1b652a82667da33ea33d35bc8b8f09d134d7c50949078ed2efbe0ce0d49f3904",
+      "bytes": 13447
     },
     {
       "file": "tools/physics_nodes_workflow_addon/contract.py",
-      "sha256": "64bae546a7ab811a96223a5c0aaa322ba43728d6fcb289473d57eda75ab7969c",
-      "bytes": 31867
+      "sha256": "509abc32fa0ca275cfa6fa7826a6d7e5a3935112f982cafa2913ac2ebfe09db0",
+      "bytes": 35994
     },
     {
       "file": "tools/physics_nodes_workflow_addon/core.py",
-      "sha256": "d57411f886a36ac66fcbc82bf9f5bf4102bf2dce174a8f083d6c6e070967aeae",
-      "bytes": 51254
+      "sha256": "921ec91fe1e333a896dc9f2249f9b2fa7ef154e8b577082f3605a25fed432896",
+      "bytes": 50276
     },
     {
       "file": "tools/physics_nodes_workflow_addon/deformation.py",
@@ -477,8 +597,8 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/export.py",
-      "sha256": "1c379da354237c2e1d92b09a81760c3a461a1ba23742f6bd732a7512c209a15a",
-      "bytes": 18435
+      "sha256": "a792110f9388c317bc71dd45cd0fb0924fac6233e8d75b950bc5ce2ef4649ffc",
+      "bytes": 18042
     },
     {
       "file": "tools/physics_nodes_workflow_addon/export_delivery.py",
@@ -496,6 +616,11 @@
       "bytes": 20119
     },
     {
+      "file": "tools/physics_nodes_workflow_addon/host_compat.py",
+      "sha256": "ffc9c2ae9abf3aeaccf97be9730f5e1ca82a64748acb2827d3971a44f70f17b9",
+      "bytes": 587
+    },
+    {
       "file": "tools/physics_nodes_workflow_addon/identity.py",
       "sha256": "40d92b77891004c3eec20bf38eb7c02ea654489c27d6aac9600ceb5e7237eb87",
       "bytes": 76304
@@ -507,13 +632,13 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/native_density.py",
-      "sha256": "76c4b2cf428eb1d48d9f99f7705f92f3da03d0e5e49704b0f562f81f824d0e12",
-      "bytes": 35903
+      "sha256": "83fbb5434d3f7deac9e88d6de59bedcd96db6e46274f14ee3f6b7827e2007587",
+      "bytes": 35950
     },
     {
       "file": "tools/physics_nodes_workflow_addon/native_fluid.py",
-      "sha256": "1b3c5e13253c2f0770763e95f91a86f98fd31f8784f8fe4aa214d378bbd5a1d3",
-      "bytes": 37045
+      "sha256": "811105711c83ad4d41bd21c55f4b0cd983fe6925196f9eff62154ca174435c90",
+      "bytes": 48752
     },
     {
       "file": "tools/physics_nodes_workflow_addon/prototypes.py",
@@ -532,18 +657,23 @@
     },
     {
       "file": "tools/physics_nodes_workflow_addon/subgroups.py",
-      "sha256": "848c1dde0ce988e5166c134e373901b61448163c1568d518260f86e49ce2fec0",
-      "bytes": 162676
+      "sha256": "2bfafff22351dea36150f0543d7b4956c3d565d4ae3b4351ff6cab8c1eb54761",
+      "bytes": 159631
     },
     {
       "file": "tools/physics_nodes_workflow_addon/ui.py",
-      "sha256": "3014c27735000ddc2d9eb94c15548a7e5bdb5d2d4ae571c057f4b9e9ab0a27bd",
-      "bytes": 43424
+      "sha256": "9945b78f1e2e32e251b44fa48bac3f688e58ae2417b204c859c40d8c48189ade",
+      "bytes": 64109
     },
     {
       "file": "tools/physics_nodes_workflow_addon/vdb_export.py",
       "sha256": "0cd24491d552867062dbf0635f43cecb702e7edcfda5f4944af2d0347d076925",
       "bytes": 20503
+    },
+    {
+      "file": "tools/physics_nodes_workflow_addon/workbench_worker.py",
+      "sha256": "53e62e9f046221f3beebc0fdf0e0dc64bc1890cffd4742365e3cbcf5fcea3212",
+      "bytes": 2996
     },
     {
       "file": "tools/physics_workflow_cli_v1/__init__.py",
@@ -552,13 +682,13 @@
     },
     {
       "file": "tools/physics_workflow_cli_v1/cli.py",
-      "sha256": "622431e151682c9bc1fb6132b1ebca8c9210099420ce1be80c5b1c5271f8c3e4",
-      "bytes": 5764
+      "sha256": "99495ee97d1ca8e9c44889f6a133e3428add6a9fbf13f5363ccbf0202a237a4f",
+      "bytes": 5741
     },
     {
       "file": "tools/physics_workflow_cli_v1/deployment.py",
-      "sha256": "62a6a13b73ebae8c69fad818567820644aa9a83ddb54fd4ae9a756d83d85b1b4",
-      "bytes": 2836
+      "sha256": "32a283695a83539116948a898f71b654af61787f3e036c29514da3e279d9dc49",
+      "bytes": 2991
     },
     {
       "file": "tools/physics_workflow_cli_v1/geometry_evidence.py",
@@ -602,18 +732,18 @@
     },
     {
       "file": "tools/physics_workflow_cli_v1/resume.py",
-      "sha256": "762f7ab2e9ef8794314d46c78a0c732baaefa2e06ad04b4027a41eafd629b235",
-      "bytes": 75260
+      "sha256": "bdbb68663ca7f5a6e78ed23f67d754164bf1db37e848b90199be361b2793fc3f",
+      "bytes": 77326
     },
     {
       "file": "tools/physics_workflow_cli_v1/runner.py",
-      "sha256": "79eab1d570cf3b373624d33667b9b32a5584b66f39d3517e7321f2924845f972",
-      "bytes": 65208
+      "sha256": "0ce42cfa62f27e3d9ba835a115a5a5d6839cf99efeb96ae51e3b055061acc497",
+      "bytes": 66775
     },
     {
       "file": "tools/physics_workflow_cli_v1/worker.py",
-      "sha256": "e9bd857211bcab11cb1217f59e5889be1d35d2e18009530262b68211a4fe1ae8",
-      "bytes": 7639
+      "sha256": "9798ca483eb94b4c38af9dcd6ef2ccb17cba5506d05273c4e2ba8f4deb646a73",
+      "bytes": 9637
     }
   ]
 }

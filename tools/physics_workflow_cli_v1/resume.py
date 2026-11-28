@@ -251,6 +251,7 @@ def _normalized_candidate_fields(normalized: dict[str, Any] | None) -> dict[str,
     cache_expected = bool(
         operation in ("build", "update", "parameters", "adopt", "bake")
         and (normalized.get("bake") or operation == "bake")
+        and normalized.get("bridge_mode") not in {"CLOTH", "RIGID_BODY", "MANTAFLOW_BRIDGE"}
     )
     return {
         "operation": operation,
@@ -597,6 +598,38 @@ def _safe_json(path: Path) -> Any:
         return None
 
 
+def _native_delivery_files(data):
+    proof = data.get("independent_cold_reopen")
+    if not isinstance(proof, dict) or proof.get("sha256") != data.get("output_sha256"):
+        raise ResumeError("VERIFICATION_FAILED", "Native candidate did not cold-open with its published fingerprint")
+    files = {}
+    point_cache = proof.get("native_point_cache", {})
+    for directory, inventory in proof.get("resolved_point_cache_files", point_cache.get("files", {})).items():
+        for name, sha in inventory.items():
+            files[str(Path(directory) / name)] = sha
+    alembic = point_cache.get("alembic_artifact")
+    if alembic:
+        files[alembic["path"]] = alembic["sha256"]
+    bake = data.get("bake")
+    if bake:
+        root = Path(bake["cache_directory"])
+        manifest_path = root.parent / "manifest.json"
+        files[str(manifest_path)] = bake["manifest_sha256"]
+        manifest = _safe_json(manifest_path)
+        if not isinstance(manifest, dict):
+            raise ResumeError("CACHE_INVALID", "Missing native solver manifest")
+        for frame in manifest["frames"].values():
+            for entry in frame["files"]:
+                relative = _safe_rel_path(entry["path"])
+                if not relative:
+                    raise ResumeError("CACHE_INVALID", "Invalid native solver manifest file path")
+                files[str(root / relative)] = entry["sha256"]
+    for path, sha in files.items():
+        if _assert_same_file_sha(path, sha):
+            raise ResumeError("CACHE_INVALID", f"Native artifact changed after cold open: {path}")
+    return files
+
+
 def _record_success_evidence(
     candidate: dict[str, Any],
     attempt: dict[str, Any],
@@ -733,6 +766,8 @@ def _record_success_evidence(
     }
     attempt["exports"] = exports
     attempt["cache"] = cache_record
+    if data.get("implementation_version") and "independent_cold_reopen" in data:
+        attempt["native_files"] = _native_delivery_files(data)
     used_paths = attempt.setdefault("used_paths", {})
     used_paths["output_blend"] = str(output_path)
     if cache_record is not None:
@@ -1128,6 +1163,11 @@ def verify_success_attempt(candidate: dict[str, Any]) -> dict[str, Any]:
                     "expected_sha256": digest,
                 }
             )
+
+    for path, sha in (attempt.get("native_files") or {}).items():
+        reason = _assert_same_file_sha(path, sha)
+        if reason:
+            reasons.append({"code": "native_cache_" + reason, "path": path, "expected_sha256": sha})
 
     export_format = (candidate.get("normalized") or {}).get("export_format")
     primary = (attempt.get("used_paths") or {}).get("export_path") or (candidate.get("request") or {}).get("export_path")

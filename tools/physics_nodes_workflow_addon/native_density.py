@@ -13,6 +13,7 @@ import uuid
 import bpy
 import numpy as np
 
+from .host_compat import is_supported_host
 from .vdb_export import VdbExportError, _openvdb, _sha256_file
 
 
@@ -714,7 +715,7 @@ def _export(vdb, guide, options, cache, frames):
 def execute_request(obj, request):
     """Build or reuse the scene guide, or export it using the current art edits."""
     operation = request.get("operation")
-    if bpy.app.version[:2] != (5, 3) or operation not in ("guide_density", "export_density"):
+    if not is_supported_host(bpy.app.version) or operation not in ("guide_density", "export_density"):
         _error("DENSITY_UNSUPPORTED", "This operation requires the Blender 5.3 native density guide")
     options = request.get("native_density") or {}
     if not isinstance(options, dict):

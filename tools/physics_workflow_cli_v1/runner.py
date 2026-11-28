@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import traceback
 from typing import Any
 
@@ -21,6 +22,28 @@ from . import resume
 
 _TOP_LEVEL_PARAM_KEYS = ("substeps", "seed", "frame_start", "frame_end")
 _EXPORT_EXTENSIONS = {"STATIC_MESH": ".blend", "ALEMBIC": ".abc", "OPENVDB": ".vdb"}
+_NATIVE_SOLVERS = {"CLOTH", "RIGID_BODY", "MANTAFLOW_BRIDGE"}
+
+
+def _execute_native(raw_request, output, input_sha, job_dir, timeout, control, receipt):
+    core = str(deployment.core_directory())
+    if core not in sys.path:
+        sys.path.insert(0, core)
+    from physics_native import execute_run
+
+    payload = {key: value for key, value in raw_request.items()
+               if key not in {"bake_directory", "allow_overwrite", "overwrite", "label"}}
+    payload.update(output_blend=str(output), operation=payload.get("operation", "build"))
+    payload.setdefault("expected_sha256", input_sha)
+    packet, _ = execute_run(deployment.default_blender_binary(), payload, job_dir.parent, timeout,
+                            job=job_dir, cancel_check=control.poll_cancel)
+    data = packet.get("data") or {}
+    if packet.get("ok"):
+        result = {**data, "input_sha256_before": input_sha, "input_sha256_after": data["input_sha256"]}
+        receipt.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    return protocol.CommandResponse(ok=packet["ok"], command="run", job_id=job_dir.name,
+                                    data=data, error=packet.get("error"),
+                                    artifacts=list((packet.get("artifacts") or {}).values()))
 
 
 def _failure(
@@ -210,16 +233,13 @@ def _append_existing_artifact(artifacts: list[str], value: Any) -> None:
 
 def describe() -> protocol.CommandResponse:
     contract = deployment.import_addon_module("contract")
-    cli_contract = contract.describe_contract()
-    cli_contract.pop("native_fluid", None)
     blender_bin = deployment.default_blender_binary(require_exists=False)
     return protocol.CommandResponse(
         ok=True,
         command="describe",
         job_id=protocol.new_job_id("desc"),
         data={
-            **cli_contract,
-            "native_fluid_entrypoint": "blender_addon_panel",
+            **contract.describe_contract(),
             "blender_binary": str(blender_bin),
             "addon_directory": str(deployment.addon_directory()),
             "default_memory_limit_mb": 4096,
@@ -360,12 +380,6 @@ def _run_single_impl(
         return _failure("run", job_id, "VALIDATION_ERROR", memory_error)
     if not isinstance(raw_request, dict):
         return _failure("run", job_id, "VALIDATION_ERROR", "Run request payload must be a JSON object")
-
-    if str(raw_request.get("preset_id", "")).strip() in getattr(contract, "NATIVE_FLUID_PRESETS", ()):
-        return _failure(
-            "run", job_id, "VALIDATION_ERROR",
-            "Native liquid and gas are available in the Blender add-on Native Fluid panel.",
-        )
 
     try:
         normalized = contract.normalize_request(raw_request)
@@ -570,6 +584,10 @@ def _run_single_impl(
         attempt=attempt,
         candidate_status="running",
     )
+
+    if normalized.get("bridge_mode") in _NATIVE_SOLVERS and normalized.get("preset_id") in (
+            contract.NATIVE_FLUID_PRESETS.keys() | contract.NATIVE_POINT_CACHE_PRESETS.keys()):
+        return _execute_native(raw_request, output_blend, input_sha256, job_dir, timeout_seconds, control, receipt_file)
 
     worker_proc = None
     verifier_proc = None
@@ -1040,6 +1058,8 @@ def _sweep_variant_request(
     if bool(request.get("bake")) or str(request.get("operation", "build")) == "bake":
         request["bake_directory"] = str(variant_dir / "bake")
         used_paths["bake_directory"] = request["bake_directory"]
+    if str(request.get("preset_id", "")).startswith("native_") and "native_settings" in base_request:
+        request["native_settings"] = {**base_request["native_settings"], **variant.get("native_settings", {})}
 
     export_format = str(request.get("export_format", "NONE"))
     if export_format != "NONE":
@@ -1304,6 +1324,8 @@ def _run_sweep_impl(
         resume.write_plan(resume_plan_file, plan)
         control.set_phase("candidate_starting", plan=plan, candidate=candidate, attempt=attempt)
         try:
+            # The sweep owns this path regardless of a path provided by the caller.
+            Path(used_paths["output_blend"]).parent.mkdir(exist_ok=True)
             result = run_single(
                 request,
                 sweep_dir,

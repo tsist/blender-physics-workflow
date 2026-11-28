@@ -1,7 +1,7 @@
 """Workflow availability and solver quality are separate product dimensions."""
 from __future__ import annotations
 
-IMPLEMENTATION_VERSION = "0.9.0-dev.2"
+IMPLEMENTATION_VERSION = "1.0.0-rc.1"
 # Native fluid support keeps the existing Geometry Nodes graph layout.
 GRAPH_IMPLEMENTATION_VERSION = "0.8.1-dev.1"
 QUALITY_NOTES = {
@@ -24,7 +24,7 @@ def describe_capabilities():
         "internal_solver_state_compared": False,
         "pinning": "explicit_POINT_FLOAT_pnw_pinned",
         "legacy_migration": "explicit_force_rebuild_retains_previous_graph",
-        "native_bridges": "mantaflow_explicit_native_presets",
+        "native_bridges": ["CLOTH", "RIGID_BODY", "MANTAFLOW_BRIDGE"],
         "openvdb_export": "verified_surface_level_set_of_closed_world_mesh",
         "alembic_export": "realized_single_mesh_sequence",
         "export_delivery_schema": "pnw.export.delivery/1",

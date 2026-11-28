@@ -1,35 +1,160 @@
 # Blender 5.3 原生液体与烟气
 
-在 Windows Blender 5.3.0（02f0899d78e3）安装 Physics Nodes Workbench 0.9.0-dev.2。可用已经配置好的 Mantaflow 场景开始，或按下方三个场景搭一个小样。原生操作在 Blender 的 **Physics Nodes → Native Fluid** 面板，配套独立 CLI 处理几何节点预设。
+Windows Blender `5.3.0` 构建 `02f0899d78e3` 的当前候选版共享一个插件源码。液体使用 `native_liquid`，烟气用 `native_gas`。可以用已保存的域，缓存设为 All 或 Modular、帧偏移 0。液体开启 Mesh，烟气采用 OpenVDB 数据。若要交固定变换的烟气导向序列，关闭 Adaptive Domain。较早的粒子和表面重建流程仍用各自的 `GN_NATIVE` 预设。
 
-## 接管原生域
+## 发现入口、试形与冷开
 
-1. 另存独立工作副本。在 **Physics Properties** 配好域、流入与碰撞体。缓存设为 **All**，确认帧域和零帧偏移。液体开启 **Mesh**，烟气设为 **OpenVDB** 数据并关闭 **Adaptive Domain**，以保留固定网格布局。
-2. 选择本地域对象，按 N 并打开 **Physics Nodes → Native Fluid**。如有多个域修改器，选择对应的 **Domain Modifier**。保持输入工程与已有缓存可以按原路径读取。
-3. 在工作副本用 **Adopt Domain** 接管已配置的域。使用短路径和独立的新缓存位置。执行 **Bake → Inspect**，核对帧域、代次与活动缓存。对已有外部缓存的工程，保留原件，从未烘焙的独立工作副本新建受管代次。
-4. 需要调模拟时，先 **Detach Managed Cache** 留存旧代次和归档，再在 Physics Properties 调分辨率、步长或液体发射参数，随后重烘。保留可重算工程、旧手修和每次选帧输出。
+```powershell
+$project = '<PROJECT_ROOT>'
+$ctl = Join-Path $project 'blenderctl.ps1'
+& $ctl --blender-version 5.3.0 physics describe
+& $ctl --blender-version 5.3.0 discover --product physics --action pnw.native_fluid
+```
 
-## 瓶身双翼飞溅
+读 `data.native_fluid` 的版本、可调项和操作。`physics run --request` 接收 UTF-8 JSON，请求含 `input_blend`、`preset_id`、`target_object`、`modifier_name`、`operation`、`parameters` 中的实际 `frame_start` 与 `frame_end`。可以给 `expected_sha256` 锁定接手版本，给 `preserve_objects` 核验指定网格的几何与世界变换。公共 `request` 信封可用 `schema_version: "1.0"`、`command: "physics.run"` 和 `params`。
 
-把斜向液体流入对准瓶身，让它接触后向两翼展开。先用短帧段和低分辨率找撞击帧，在固定的正视和侧视检查双翼、瓶壁穿插、液片厚薄与水珠层次。打开液体区的 **Liquid Frame**，填写有效烘焙帧和全新 .blend 路径，点 **Save Editable Mesh**。
+| 目的 | 操作与输出 |
+| --- | --- |
+| 查域、帧域、域身份和缓存代次 | `inspect`。从 `data.inspection` 读 `cache_state`、`cache_valid` 和 `generation` |
+| 接管、调参、重烘、分离、接回烟导向 | `build`、`adopt`、`parameters`、`bake`、`invalidate_cache`、`guide_density`。各写一个新的绝对 `output_blend`。`parameters` 可给对应预设的 `native_settings` |
+| 单帧出图 | `preview`，填 `preview.frame`、新的绝对 `preview.path`，可选 `width` 128–800 和 `samples` 1–32。按工作文件内的相机出图 |
+| 取液体定格 | `export`，填 `export_format: "STATIC_MESH"`、`export_frame`、新的绝对 `.blend` `export_path` |
+| 交烟气 | `guide_density` 创建或复用导向。`export_density` 填 `native_density.guide_name` 与新的绝对 `native_density.output_directory`。交 `FloatGrid` / `FOG_VOLUME` 的 `density`、帧号、网格变换和校验清单 |
 
-重新打开输出工程检查网格可编辑，再把雕刻或比例编辑后的网格另存为艺术家版本。要比较不同帧时，从可重算工程输出另一份网格；在重烘前后确认已交接的手修几何和世界变换一致。
+新输出的父目录先创建，使用尚不存在的目标路径。CLI 对工作副本和密度输出自动另起进程冷开再发布。写入完读 `data.independent_cold_reopen`、`artifacts` 和 `data.resource_evidence`。用 `operation: "bake"` 烘焙。原生工作副本候选共用 `sweep`、`batch` 和 `resume/status/cancel`，支持以 `data.resume_plan` 恢复。候选恢复会分配新的输出和缓存位置。
 
-## 固定透明杯积液
+## 从裸网格搭域
 
-用封底、有足够壁厚的静止透明杯作碰撞体。从杯口上方入流，在约定帧对流入物体的 **Use Flow** 打关键帧并关闭。固定侧视相机，比对注水中、关停后以及趋平后的水线。检查液面高差、杯外漏液、体积漂移与玻璃接触边缘。碰撞体和相机保持一致，再比较预览和成品分辨率，观察液面是否更稳定。
+在带场景框架的源工作副本上给 `target_object` 一个尚未占用的名字，给 `modifier_name` 一个域修改器名，用 `build` 搭域或用 `bake` 搭域并烘焙。增加下面的请求字段，网格和风场名称按保存的场景填写。
 
-保留真实 FLIP 时间轴。从签名有效的代表帧采样液面，必要时单独保存按实测高度驱动的晚段光学展示，注明使用的帧段和源模拟。要交单帧液面时同样通过 **Save Editable Mesh** 写入新路径。
+```json
+{
+  "native_setup": {
+    "inflows": ["Emitter"],
+    "effectors": ["Character Collision"],
+    "domain_margin": 0.4,
+    "cache_type": "MODULAR"
+  },
+  "force_field_objects": ["Wind"],
+  "native_settings": {"resolution_max": 32, "use_noise": true, "vorticity": 0.1},
+  "archive_mode": "none"
+}
+```
 
-## 绕物烟团与密度 VDB
+域包围盒取作用范围内逐帧求值的网格并添加余量。碰撞代理按 Armature、细分或修形、Fluid 的顺序求值。已接入的静态 Wind、Turbulence、Vortex 与逐帧蒙皮代理的几何都进入缓存依赖指纹。液体调参可给 `viscosity` 、`surface_tension` 和 `mesh_scale`。烟气调参可给 `vorticity`、`use_noise`、`noise_scale`、`noise_strength` 和 `use_adaptive_domain`。
 
-1. 在固定轴向的气体域烘焙 OpenVDB 缓存。摆好旁路和出口控制体，在 **Density Guide & VDB Sequence** 选中 **Bypass Control** 与 **Exit Control**，点 **Build / Find Guide**。保存包含原生源和派生几何节点的工作副本。
-2. 在导向对象的节点和控制体中调强度、路径或细丝。保持相机、光照和帧号相同，比较改型前后烟的轮廓、细丝与绕物间隙。导向流程用 Blender 5.3 的 **Rasterize Points** 把调整后的真实密度写回源体素变换。
-3. 为 **VDB Output Directory** 指定新目录，点 **Export Density Sequence**。随交付附带 density-sequence.json（pnw.native-density-sequence/1）。确认连续帧、密度网格为 FloatGrid / FOG_VOLUME，逐文件核对哈希，并确认帧间体素变换一致。原生气体重烘后先 **Build / Find Guide** 刷新密度源，再导出到新目录。
-4. 另起 Blender 打开导向工程，在干净场景按清单的起始帧、偏移、长度和播放模式加载输出序列，抽查首、中、尾并回跳首帧。套用体积材质，用 density 驱动 Principled Volume 的 Density，并在同机位复核烟丝。工程随活动缓存、归档和导向源目录一起交接。
+需要更改 Modular 的表面或噪波而保留已签收数据时，将 `input_blend` 指向已烘焙副本，去掉搭域字段，提交 `operation: "bake"`、`reuse_data: true` 和相关 `native_settings`。新代次复制验证过的 Data 与 Config，液体只烘 Mesh，烟气只烘 Noise。Modular 默认不复制归档，All 默认留副本，可用 `archive_mode: "none"` 或 `"copy"` 明确选择。
 
-## 预算与恢复
+## 三件样例的实跑方式
 
-- 从低分辨率、短帧段串行试形。确认轮廓后再放大到完整帧域和成品分辨率。记录实际用时、峰值内存与缓存大小。用 Blender 面板时，在运行长烘焙前先核对系统余量。
-- **External** 表示外部缓存。**stale** 或 NATIVE_FLUID_CACHE_* 错误优先检查域身份、签名帧、缓存位置与文件清单。修改原生域属性前先分离活动缓存。
-- 交接时附上工程、定格或 VDB、相关缓存及帧号。另起进程冷开后再签收，灯光和渲染部门用保存下来的固定机位复查。
+在工作室的 5.3 宿主可用下面的原件复验。接新项目时替换源文件、域名、修改器和帧域。每条命令保存请求与回执，输出写入同一新批次。
+
+```powershell
+$fixtures = Join-Path $project 'work/audit/<batch>/'
+$work = Join-Path $project ('work/audit/<batch>/' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$jobs = Join-Path $work 'jobs'
+New-Item -ItemType Directory -Path $work | Out-Null
+
+function Invoke-Fluid {
+    param([string]$Label, [hashtable]$Payload)
+    $requestFile = Join-Path $work "$Label.request.json"
+    $resultFile = Join-Path $work "$Label.result.json"
+    if ((Test-Path -LiteralPath $requestFile) -or (Test-Path -LiteralPath $resultFile)) {
+        throw "Choose a new label or a new batch. $Label"
+    }
+    $Payload.expected_sha256 = (Get-FileHash -LiteralPath $Payload.input_blend -Algorithm SHA256).Hash.ToLowerInvariant()
+    $Payload | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $requestFile -Encoding utf8
+    $reply = (& $ctl --blender-version 5.3.0 --jobs-dir $jobs --timeout 180 physics run --request $requestFile) -join "`n"
+    $exit = $LASTEXITCODE
+    $reply | Set-Content -LiteralPath $resultFile -Encoding utf8
+    $parsed = $reply | ConvertFrom-Json
+    if ($exit -ne 0 -or !$parsed.ok) { throw "$Label $($parsed.error.code) $($parsed.error.message)" }
+    $parsed
+}
+```
+
+### 瓶身飞溅
+
+先看正侧视与瓶壁接触，从真实烘焙选帧。以比例编辑或雕刻修薄液翼，保留独立的定格网格供接手。重新烘焙后核对旧手修的指纹，再把候选帧固化为另一份网格。
+
+```powershell
+$bottle = Join-Path $fixtures 'bottle-guarded/bottle-artist-rejoined.blend'
+$tuned = Join-Path $work 'bottle-tuned.blend'
+$baked = Join-Path $work 'bottle-baked.blend'
+$pose = Join-Path $work 'bottle-f011.blend'
+$liquid = @{
+    preset_id = 'native_liquid'; target_object = 'Liquid Surface'; modifier_name = 'Liquid Domain'
+    parameters = @{frame_start = 1; frame_end = 14}; resource_profile = 'light'
+    preserve_objects = @('Bottle Splash | Artist Handoff', 'Bottle Splash | Rim Droplets')
+}
+$baseline = Invoke-Fluid 'bottle-inspect' ($liquid + @{operation='inspect'; input_blend=$bottle})
+$tunedResult = Invoke-Fluid 'bottle-parameters' ($liquid + @{
+    operation='parameters'; input_blend=$bottle; output_blend=$tuned; native_settings=@{resolution_max=48}
+})
+$bakeResult = Invoke-Fluid 'bottle-bake' ($liquid + @{operation='bake'; input_blend=$tuned; output_blend=$baked})
+$poseResult = Invoke-Fluid 'bottle-export' ($liquid + @{
+    operation='export'; input_blend=$baked; export_format='STATIC_MESH'; export_frame=11; export_path=$pose
+})
+```
+
+回执中检查 `preserved_objects` 前后一致，`independent_cold_reopen.editable_mesh` 对应新取帧。短档 R48 适合重算轮廓，近景薄厚与离体水滴以正侧画面复核。
+
+### 固定透明杯
+
+保留原始 FLIP 时间轴，在固定侧视比较进液和停流。液面高度、范围、杯外边界与闭合网格体积用真模拟采样。缝隙与折射影响水线时，可按采样单独制作晚段光学展示，注明采用帧段和原模拟证据。
+
+```powershell
+$cup = Join-Path $fixtures 'cup-timed/work.blend'
+$cupLook = Join-Path $fixtures 'cup-timed/cup-optical-interface.blend'
+$liquidCup = @{
+    preset_id='native_liquid'; target_object='Liquid domain'; modifier_name='Mantaflow liquid'
+    resource_profile='light'; parameters=@{frame_start=1; frame_end=100}
+}
+$cupFacts = Invoke-Fluid 'cup-inspect' ($liquidCup + @{operation='inspect'; input_blend=$cup})
+$earlyImage = Invoke-Fluid 'cup-f035' ($liquidCup + @{
+    operation='preview'; input_blend=$cup; preview=@{frame=35; path=(Join-Path $work 'cup-f035.png'); width=320}
+})
+$lateImage = Invoke-Fluid 'cup-f100' ($liquidCup + @{
+    operation='preview'; input_blend=$cupLook; preview=@{frame=100; path=(Join-Path $work 'cup-f100.png'); width=320}
+})
+$cupSurface = Invoke-Fluid 'cup-surface' ($liquidCup + @{
+    operation='export'; input_blend=$cup; export_format='STATIC_MESH'; export_frame=100
+    export_path=(Join-Path $work 'cup-water-f100.blend')
+})
+```
+
+样例 F36 关流，F76 至 F100 采样高差约 58.8 → 19.8 mm。晚段展示用 F60–100 的真实采样驱动形态键，真模拟末帧网格为 8,334 顶点、16,664 面。
+
+### 绕物烟团
+
+在完整原生气体缓存上继续调控制体或导向强度。`Rasterize Points` 把修改后的真实密度样本写回同一体素变换。细丝在派生节点图上继续编辑。固定灯光和相机，原生与引导各出同一帧，并从斜角核对烟与道具的空间关系。
+
+```powershell
+$smoke = Join-Path $fixtures 'smoke-r96/smoke-contact.blend'
+$guide = Join-Path $work 'smoke-guide.blend'
+$density = Join-Path $work 'density'
+$gas = @{
+    preset_id='native_gas'; target_object='Editable Mantaflow gas domain'; modifier_name='Mantaflow'
+    resource_profile='light'; parameters=@{frame_start=1; frame_end=48}
+}
+$guideResult = Invoke-Fluid 'smoke-guide' ($gas + @{
+    operation='guide_density'; input_blend=$smoke; output_blend=$guide
+    native_density=@{guide_name='Quality Smoke Guide'; guide_strength=0.61}
+})
+$smokePreview = Invoke-Fluid 'smoke-f044' ($gas + @{
+    operation='preview'; input_blend=$guide; preview=@{frame=44; path=(Join-Path $work 'smoke-f044.png'); width=320}
+})
+$densityResult = Invoke-Fluid 'smoke-vdb' ($gas + @{
+    operation='export_density'; input_blend=$guide
+    native_density=@{guide_name='Quality Smoke Guide'; output_directory=$density}
+})
+```
+
+比较 `data.guide_state` 与其冷开副本。导向强度调整应保留图指纹、细丝密度参数和控制体位置。检查 `density-sequence.json` 的 48 个实档、`density` 网格、变换与哈希，以及冷开 `volume_seek`。更换烟气烘焙代次后先 `guide_density` 刷新密度源，再导出至新目录。
+
+## 面板、缓存与资源恢复
+
+- 用面板时先在加载对应插件的 Blender 中保存工作副本，选域进入 **Physics Nodes → Native Fluid**。依次 **Adopt Domain**、**Bake**、**Inspect**。改原生域设置前用 **Detach Managed Cache** 留住旧代次和归档。液体用 **Save Editable Mesh**，烟气用 **Build / Find Guide** 与 **Export Density Sequence**。
+- 预览优先试形。短档 `light` 硬上限 768 MiB，至少 7.25 GiB 可用物理内存才启动。标准档 `standard` 硬上限 1.5 GiB，启动门槛 8 GiB。两档串行、两逻辑核与两线程，运行保留 6 GiB 桌面余量。记录烘焙耗时、峰值提交与缓存大小。资源不足时读 `resources.json`，保留已提交结果，等余量恢复再用新输出路径。
+- `External` 表示外部缓存。保留原工程，在未烘焙的独立工作副本建立受管代次。`stale` 或 `NATIVE_FLUID_CACHE_*` 先核身份、清单、帧与实际缓存位置。原生域属性变更可清理当前活动缓存，安全分离后再调。只在签名帧有效时预览或导出。
+- 交接保存的 `.blend`、请求与回执、相关活动缓存及同代归档。导向工程可能依赖作业里的 `guide-source`。烟序列随 `density-sequence.json` 使用，其 Frame Start、Offset、Duration 和模式由清单提供。精确预设与支持项始终以 `physics describe` 为准。[实跑回执和性能](<work/audit/<batch>/>) · [三件作品与面板接手](<work/audit/<batch>/>)

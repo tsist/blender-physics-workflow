@@ -29,12 +29,12 @@ if bpy is not None:
 
 
 bl_info = {
-    "name": "Physics Nodes Workbench",
+    "name": "物理模拟工作台",
     "author": "Blender AI Pipeline",
-    "version": (0, 9, 0),
+    "version": (1, 0, 0),
     "blender": (5, 2, 0),
-    "location": "View3D > UI > Physics Nodes",
-    "description": "Modular Geometry Nodes Physics Node Library, Workbench, Disk Cache & CLI",
+    "location": "三维视口 > 侧栏 > P·物理",
+    "description": "几何节点物理、刚体破碎、布料绳索、原生流体与缓存导出",
     "category": "Physics",
 }
 
@@ -80,6 +80,13 @@ def execute_request(raw_request: dict[str, Any]) -> dict[str, Any]:
 
     target_name = req["target_object"]
     obj = bpy.data.objects.get(target_name) if target_name else bpy.context.active_object
+    if req["preset_id"] in pnw_contract.NATIVE_FLUID_PRESETS and req.get("native_setup") is not None:
+        from . import native_fluid
+
+        try:
+            obj = native_fluid.configure_scaffold(req)
+        except (ValueError, native_fluid.NativeFluidError) as exc:
+            return {"ok": False, "error": {"code": getattr(exc, "code", "VALIDATION_ERROR"), "message": str(exc)}}
     if obj is None:
         return {
             "ok": False,
@@ -104,6 +111,12 @@ def execute_request(raw_request: dict[str, Any]) -> dict[str, Any]:
 
         if req["preset_id"] in pnw_contract.NATIVE_FLUID_PRESETS:
             return _execute_native_request(obj, req, result)
+
+        if req["preset_id"] in pnw_contract.NATIVE_POINT_CACHE_PRESETS:
+            from . import bridge
+
+            result.update(bridge.apply_bridge(obj, req))
+            return result
 
         if op in ("build", "update", "parameters", "adopt"):
             build_info = pnw_core.build_or_update_workflow(obj, req)

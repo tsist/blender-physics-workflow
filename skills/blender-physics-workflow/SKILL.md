@@ -1,16 +1,17 @@
 ---
 name: blender-physics-workflow
-description: 使用物理节点工作台与配套 CLI 制作和核验刚体、布料绳索、弹性壳、粒子表面及 Blender 5.3 原生液体和烟气。适用于碰撞与缓存、飞溅定格、容器积液、可编辑烟气导向与密度 VDB 交付。
+description: 使用物理节点工作台与公共 blenderctl 制作和核验刚体、布料绳索、弹性壳、粒子表面及 Blender 5.3 原生液体和烟气。适用于碰撞与缓存、飞溅定格、容器积液、可编辑烟气导向与密度 VDB 交付。
 ---
 
 # 物理模拟工作流
 
-本技能覆盖物理次级响应、液体定格和烟气密度交付。使用前请定位本仓库或对应版本的源码包。REPO_ROOT 指包含 tools/ 和 docs/ 的源码目录。
+本技能覆盖物理次级响应、液体定格和烟气密度交付。跨部门交接见 [动画与模拟部门](https://github.com/tsist/blender-ai-workflow/blob/main/skills/blender-work-methodology/references/departments/animation.md)，通用工程与公共入口见 [blender-cli](https://github.com/tsist/blenderctl/blob/main/skills/blender-cli/SKILL.md)。
 
 ## 先选工作流
 
-- 需要真实液体碰撞、积液或从原生气体密度改型时，在 Windows Blender 5.3.0 的 **Physics Nodes → Native Fluid** 面板中处理 `native_liquid` 或 `native_gas`。从已配置的 Mantaflow 域开始，读[原生流体制作、三件样例与交接](references/native-fluid.md)。
-- 刚体代理、布料绳索、弹性壳、粒子喷射和表面 level-set 走现有 `GN_NATIVE`，按下文操作。先用下方独立 CLI 的 describe 核对实际版本和预设。两套导出有各自的交接清单。
+- 需要原生布料、刚体破碎或关键帧时，在 Windows Blender 5.3.0 用 `native_cloth`、`native_rigid_body`，按[原生布料与刚体](references/native-point-cache.md)配好变形代理和落盘产物。
+- 需要真实液体碰撞、积液或原生烟气时，用 `native_liquid` 或 `native_gas`，支持从裸网格搭建域和接管既有 Mantaflow 域。参考[原生流体制作、三件样例与交接](references/native-fluid.md)。
+- 刚体代理、布料绳索、弹性壳、粒子喷射和表面 level-set 仍可用 `GN_NATIVE`，按下文操作。先用 `blenderctl.ps1 physics describe` 核对实际版本和参数。工作副本制作共用批次状态与恢复计划。
 
 ## 几何节点工作流
 
@@ -18,22 +19,22 @@ description: 使用物理节点工作台与配套 CLI 制作和核验刚体、�
 
 先确认上游动画和碰撞体的关键帧已经定稿，再进物理环节。主动作一改，碰撞轨迹和缓存就得重算。
 
-在 `work/<批次名>/` 下建独立工作目录，在源码目录执行以下命令，保持作业路径简短以留足 Windows 缓存路径长度。
+在 `work/audit/<batch>/>/` 下建独立工作目录，用公共入口查当前可用预设与参数范围，保持路径简短以留足 Windows 缓存路径长度：
 
 ```powershell
-$env:BLENDER_PATH = 'C:/path/to/blender.exe'
-$cli = './tools/physics_workflow_cli_v1/cli.py'
-python -B $cli describe
+$ctl = './blenderctl.ps1'
+& $ctl discover --product physics
+& $ctl physics describe
 ```
 
-准备一份新输出路径，把原始工程留着对照。需要手调时，在 Blender 另存工程，打开工作台的 **Build on Working Copy**，再执行 **Build / Update** 创建或使用工作对象。
+准备一份新输出路径，把原始工程留着对照。需要手调界面参数时，先用 `physics panel-copy` 生成带面板身份的工作副本，避免误伤原对象或共享网格。
 
 ### 第二步：按受力行为选求解域与预设
 
 看清对象要表现什么运动，再挑 `GN_NATIVE` 的对应预设。
 
 - **刚体散落、链条与箱体倾倒（`rigid_scatter`）**：落体堆叠选 `rigid_drop_pack`，链摆选 `rigid_chain_pendulum`，单轴箱体翻倒选 `rigid_box_tipping`。球代理适合颗粒与散落件，倾倒箱体直接算真实尺寸和角速度。
-- **布料、绳索与弹性壳（`cloth_rope`）**：独立旗帜、披布与自由垂布选 `cloth_banner_wind`，悬绳选 `rope_catenary_swing`，闭合三角流形软壳选 `softbody_elastic_shell`。布面需要抗折或拉裂时开启 `bending` 和 `tearing`。需要以带骨架变形角色作为碰撞体时，先将碰撞体烘焙为受支持的普通关键帧网格。
+- **布料、绳索与弹性壳（`cloth_rope`）**：独立旗帜、披布与自由垂布选 `cloth_banner_wind`，悬绳选 `rope_catenary_swing`，闭合三角流形软壳选 `softbody_elastic_shell`。布面需要抗折或拉裂时开启 `bending` 和 `tearing`。带骨架变形角色的贴身发裙与胸臀弹性优先走 [blender-rigging](https://github.com/tsist/blender-rigging-workflow/blob/main/skills/blender-rigging/SKILL.md) 的 `surface_dynamic_action.BAKE` / `elastic_action.BAKE`；确需转入本工作台时，先将角色碰撞体烘焙为普通关键帧网格再接入。
 - **粒子喷射与表面重建（`fluid_emission`）**：喷泉颗粒与表面包裹选 `fluid_fountain_sdf`，上升烟羽体积预览选 `smoke_plume_volume`。
 
 同类预设里调参数时走普通更新，保留作者手连的节点与断开的连线。需要切换求解域或升级旧图结构时，先看清手改内容，再在工作副本上显式提交 `build` 加 `force_rebuild: true`，新建替代图并保留旧 Wrapper 供对照。
@@ -42,7 +43,10 @@ python -B $cli describe
 
 所有重力、风场、锚点、地面高度 `ground_z`、半径和厚度都按世界坐标结算。动手前先核对目标和碰撞体的世界矩阵，避免异常缩放带偏受力。
 
-- **标固定点**：选中悬挂边的顶点，用 **Pin Selected** 写入 `POINT/FLOAT` 属性 `pnw_pinned`，再把已保存的工作副本交给 CLI。
+- **标固定点**：布料和绳索靠显式 `POINT/FLOAT` 属性 `pnw_pinned` 固定顶点。先用 `physics pin-selection` 读取或写入指定顶点索引，再跑模拟，让悬挂边稳稳挂住：
+  ```powershell
+  & $ctl physics pin-selection --params $pinReq --output $pinnedBlend
+  ```
 - **配碰撞体与延迟触发**：按需指定单个碰撞体或碰撞集合；普通网格碰撞体支持位移、旋转、缩放关键帧动画。刚体整组需要到指定帧才开始下落时，把 `parameters.activation_frame` 设为目标场景帧。
 - **整理共享原型材质**：刚体实例集合里如果用了 OBJECT 级材质覆盖，先跑 `prepare_instances` 生成独立静态网格副本，把有效材质槽固化到 DATA 层，再拿返回的新集合名往下建图。
 
@@ -50,7 +54,7 @@ python -B $cli describe
 
 先切 15–30 帧的短区间或低规模小样试跑一轮，看大形、碰撞穿插和受力方向对不对，再放大到全帧域。这样几分钟就能排掉参数方向错误。
 
-- **提交试跑或扫参**：把 `input_blend`、新 `output_blend`、`target_object`、`preset_id` 和 `parameters.frame_start` / `frame_end` 写成 UTF-8 JSON，用 `run` 执行；想对比多组刚度、风速或触发帧，用 `sweep` 把每个候选的输出和缓存分开落盘。
+- **提交试跑或扫参**：把 `input_blend`、新 `output_blend`、`target_object`、`preset_id` 和 `parameters.frame_start` / `frame_end` 写成 UTF-8 JSON，用 `physics run` 执行；想对比多组刚度、风速或触发帧，用 `physics sweep` 把每个候选的输出和缓存分开落盘。
 - **烘焙完整缓存**：小样方向确认后，把帧域扩到镜头全长，打开 `bake: true`，让求解结果写入受管独立代次缓存目录。大面数布料或细密堆叠按需提高 `substeps`（1–8）与迭代次数，再跑完整烘焙。
 
 ### 第五步：按需导出，长作业用清单跟踪与续跑
@@ -64,9 +68,9 @@ python -B $cli describe
 长批次运行中用 `status` 看阶段进度，想中止时用 `cancel` 提交协作取消，中断或部分失败后直接用原 `resume_plan.json` 跑 `resume` 重放未完成候选：
 
 ```powershell
-python -B $cli run --request $reqJson --jobs-dir $jobs --timeout-seconds 300
-python -B $cli status --manifest $manifest
-python -B $cli resume --manifest $manifest --timeout-seconds 300
+& $ctl physics run --request $reqJson --jobs-dir $jobs --timeout-seconds 300
+& $ctl physics status --manifest $manifest
+& $ctl physics resume --manifest $manifest --timeout-seconds 300
 ```
 
 ### 第六步：独立冷重开核验缓存闭包
@@ -92,10 +96,10 @@ python -B $cli resume --manifest $manifest --timeout-seconds 300
 
 接到任务：「动画部门已把旗杆动作定在 1–120 帧，给 `work/flag/pole_anim.blend` 里的 `Flag_Cloth` 加上迎风布料模拟并交缓存。」
 
-1. **建批次与查入口**：在 `work/flag-wind-v001/jobs` 建目录，算出 `pole_anim.blend` 的 SHA256，运行 `python -B $cli describe` 确认 `cloth_banner_wind` 的参数名和范围。
-2. **固定顶边顶点**：在工作副本里选择靠杆的顶点，执行 **Pin Selected** 并存盘，后续以该副本为输入。
-3. **短帧小样试跑**：写一份 1–24 帧的 `test-req.json`，选 `cloth_banner_wind`，设风向 `wind_vector`、开启 `bending: true`，跑 `run` 看布面垂坠和飘动方向，确认顶边牢牢挂住、布面无穿杆。
-4. **完整烘焙与冷重开**：把帧域改成 1–120 帧，按旗布面数调高 `substeps` 和 `constraint_iterations`，设 `bake: true` 与 `verify_cold_reopen: true`，再跑 `run` 生成 `work/flag/pole_flag_baked.blend` 和受管缓存目录。
+1. **建批次与查入口**：在 `work/audit/<batch>/` 建目录，算出 `pole_anim.blend` 的 SHA256，运行 `blenderctl.ps1 physics describe` 确认 `cloth_banner_wind` 的参数名和范围。
+2. **固定顶边顶点**：准备 `pin-req.json` 填入旗布靠杆一侧的顶点编号，运行 `physics pin-selection --params pin-req.json --output work/flag/pole_pinned.blend`，写入 `pnw_pinned` 固定属性。
+3. **短帧小样试跑**：写一份 1–24 帧的 `test-req.json`，选 `cloth_banner_wind`，设风向 `wind_vector`、开启 `bending: true`，跑 `physics run` 看布面垂坠和飘动方向，确认顶边牢牢挂住、布面无穿杆。
+4. **完整烘焙与冷重开**：把帧域改成 1–120 帧，按旗布面数调高 `substeps` 和 `constraint_iterations`，设 `bake: true` 与 `verify_cold_reopen: true`，再跑 `physics run` 生成 `work/flag/pole_flag_baked.blend` 和受管缓存目录。
 5. **验收与交接**：检查回执 `ok: true`、冷重开摘要一致、关键帧画面折痕自然，把 `pole_flag_baked.blend`、SHA256、缓存目录和 120 帧预览视频交给镜头与灯光部门。
 
 ## 参考

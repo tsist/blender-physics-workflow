@@ -52,7 +52,7 @@ def _exit_code(resp: protocol.CommandResponse) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="physics-workflow", description="Physics Nodes CLI for Blender 5.3.0 and 5.2.1 LTS")
+    parser = argparse.ArgumentParser(prog="physics-workflow", description="Physics Nodes Workflow CLI")
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
     sub.add_parser("describe", help="Return contract capabilities, presets, domains, and bounds")

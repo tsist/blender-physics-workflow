@@ -31,24 +31,24 @@
 | --- | --- | --- | --- |
 | `STATIC_MESH` | 独立静态对象 `.blend` 副本 | 固化目标有效材质槽、多套 UV 及活动/渲染选择、逐面材质、着色器图、外部与打包贴图清单（相对路径自动重映射） | 先把目标贴图存盘并转为普通本地单图（避开外链、缺图、UDIM 或序列），打包搬运时一并带齐外部贴图 |
 | `ALEMBIC` | 实现后的单一动态网格序列 `.abc` | 多套 UV（Blender 扩展）与逐面材质槽名（`face_sets`） | 下游重导入后按材质槽名重新挂接着色器与贴图，并按需指定活动渲染 UV；先确认有效缓存且至少有一帧非空几何 |
-| `OPENVDB` | 表面 level-set 体素 `.vdb` | 闭合水密世界网格的体素、变换与正负符号，写出后自动独立读回核验 | 用于表面 level-set 交换；需要烟气密度时用[原生气体与密度 VDB](native-fluid.md) |
+| `OPENVDB` | 表面 level-set 体素 `.vdb` | 闭合水密世界网格的体素、变换与正负符号，写出后自动独立读回核验 | 用于表面 level-set 交换；需要烟雾密度与速度场时改走体积模拟流程 |
 
 ## 4. 作业运行、扫参、批处理与断点续跑
 
-在源码目录以已配置的 BLENDER_PATH 运行独立 CLI。可加 `--help` 查参数。
+公共入口子命令一览（均可加 `--help` 查全量参数）：
 
 ```powershell
-$cli = './tools/physics_workflow_cli_v1/cli.py'
+$ctl = './blenderctl.ps1'
 
 # 单次运行 / 扫参 / 批处理
-python -B $cli run   --request $reqJson --jobs-dir $jobs --timeout-seconds 300
-python -B $cli sweep --request $sweepJson --jobs-dir $jobs --timeout-seconds 300
-python -B $cli batch --request $batchJson --jobs-dir $jobs --timeout-seconds 300
+& $ctl physics run   --request $reqJson --jobs-dir $jobs --timeout-seconds 300
+& $ctl physics sweep --request $sweepJson --jobs-dir $jobs --timeout-seconds 300
+& $ctl physics batch --request $batchJson --jobs-dir $jobs --timeout-seconds 300
 
 # 查状态 / 协作取消 / 按清单续跑
-python -B $cli status --manifest $manifest
-python -B $cli cancel --manifest $manifest
-python -B $cli resume --manifest $manifest --timeout-seconds 300
+& $ctl physics status --manifest $manifest
+& $ctl physics cancel --manifest $manifest
+& $ctl physics resume --manifest $manifest --timeout-seconds 300
 ```
 
 使用要点：

@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
-from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
 
 TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(TOOLS_DIR) not in sys.path:
@@ -94,24 +92,9 @@ class TestPhysicsWorkflowContract(unittest.TestCase):
         self.assertTrue(resp.ok)
         self.assertEqual(resp.command, "describe")
         self.assertEqual(resp.data["contract_id"], contract.CONTRACT_ID)
-        self.assertNotIn("native_fluid", resp.data)
-        self.assertEqual(resp.data["native_fluid_entrypoint"], "blender_addon_panel")
         # Ensure serializable to UTF-8 JSON
         dumped = json.dumps(resp.to_dict(), ensure_ascii=False)
         self.assertIn("rigid_drop_pack", dumped)
-
-
-    def test_standalone_cli_rejects_native_before_launching_blender(self) -> None:
-        with TemporaryDirectory() as directory, patch.object(runner, "_run_blender_script") as launch:
-            jobs = Path(directory) / "jobs"
-            for preset in ("native_liquid", " native_gas "):
-                with self.subTest(preset=preset):
-                    result = runner.run_single({"preset_id": preset, "operation": "inspect"}, jobs)
-                    self.assertFalse(result.ok)
-                    self.assertEqual(result.error["code"], "VALIDATION_ERROR")
-                    self.assertIn("Native Fluid panel", result.error["message"])
-            launch.assert_not_called()
-            self.assertFalse(jobs.exists())
 
 
 if __name__ == "__main__":

@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+from math import isfinite
 from pathlib import Path
 import re
 import shutil
 import stat
+import struct
 from time import perf_counter
 import uuid
 
 import bpy
 
-from . import animation_identity, identity
+from . import animation_identity, bridge, identity
 from .bake import _atomic_write_json, _sha256_file
 
 
@@ -25,7 +27,7 @@ _TRANSFORM_PROPS = {
     "delta_location", "delta_rotation_euler", "delta_rotation_quaternion", "delta_scale",
 }
 _SUPPORTED_MESH_MODIFIERS = {
-    "BEVEL", "SOLIDIFY", "SUBSURF", "TRIANGULATE", "WEIGHTED_NORMAL",
+    "BEVEL", "SOLIDIFY", "SUBSURF", "TRIANGULATE", "WEIGHTED_NORMAL", "ARMATURE", "CORRECTIVE_SMOOTH",
 }
 _CACHE_SETTINGS = {
     "cache_type", "cache_frame_start", "cache_frame_end", "cache_frame_offset",
@@ -49,6 +51,106 @@ class NativeFluidError(RuntimeError):
 
 def _fail(code: str, message: str):
     raise NativeFluidError(code, message)
+
+
+def _named_objects(values, label, *, mesh=True):
+    if not isinstance(values, list) or len(set(map(str, values))) != len(values):
+        _fail("NATIVE_FLUID_SETUP", f"{label} must contain distinct named objects")
+    return [bridge.scene_object(name, mesh=mesh) for name in values]
+
+
+def _new_role_group(domain_name, suffix, objects):
+    collection = bpy.data.collections.new(f"{domain_name} | {suffix}")
+    bpy.context.scene.collection.children.link(collection)
+    for obj in objects:
+        collection.objects.link(obj)
+    return collection
+
+
+def _add_role(obj, role):
+    if any(mod.type == "FLUID" for mod in obj.modifiers):
+        _fail("NATIVE_FLUID_SETUP", f"Existing Fluid modifier on '{obj.name}'. Adopt that configured domain separately.")
+    fluid = obj.modifiers.new(f"PNW {role.title()}", "FLUID")
+    fluid.fluid_type = role
+    bridge.reorder_after_deformation(obj, fluid)
+    return fluid
+
+
+def configure_scaffold(req):
+    """Build a bounded Mantaflow domain from named mesh inputs on a working copy."""
+    setup = req["native_setup"]
+    domain_name = req["target_object"]
+    flows = _named_objects(setup.get("inflows"), "inflows")
+    effectors = _named_objects(setup.get("effectors", []), "effectors")
+    forces = _named_objects(req.get("force_field_objects") or [], "force_field_objects", mesh=False)
+    if not flows or set(flows) & set(effectors) or bpy.data.objects.get(domain_name):
+        _fail("NATIVE_FLUID_SETUP", "Provide distinct source/effector meshes and a new domain object name")
+    margin = setup.get("domain_margin", 0.4)
+    cache_type = setup.get("cache_type", "MODULAR")
+    if (type(margin) not in {float, int} or not isfinite(margin) or not 0.01 <= margin <= 20
+            or cache_type not in {"ALL", "MODULAR"}):
+        _fail("NATIVE_FLUID_SETUP", "Expected domain_margin in 0.01–20 m and cache_type ALL or MODULAR")
+    if any(not obj.field or obj.field.type not in {"WIND", "TURBULENCE", "VORTEX"} for obj in forces):
+        _fail("NATIVE_FLUID_SETUP", "Use Wind, Turbulence or Vortex force-field objects")
+    scene = bpy.context.scene
+    start, end = (req["parameters"][key] for key in ("frame_start", "frame_end"))
+    bounds = [[float("inf")] * 3, [float("-inf")] * 3]
+    before = scene.frame_current, scene.frame_subframe
+    try:
+        for frame in range(start, end + 1):
+            scene.frame_set(frame)
+            graph = bpy.context.evaluated_depsgraph_get()
+            for obj in (*flows, *effectors):
+                derived = obj.evaluated_get(graph)
+                for point in derived.bound_box:
+                    from mathutils import Vector
+
+                    xyz = derived.matrix_world @ Vector(point)
+                    for i in range(3):
+                        bounds[0][i] = min(bounds[0][i], xyz[i])
+                        bounds[1][i] = max(bounds[1][i], xyz[i])
+    finally:
+        scene.frame_set(before[0], subframe=before[1])
+    corner, opposite = bounds
+    center = [(a + b) / 2 for a, b in zip(corner, opposite)]
+    size = [(b - a) + 2 * margin for a, b in zip(corner, opposite)]
+    vertices = [(x * size[0] / 2, y * size[1] / 2, z * size[2] / 2)
+                for x, y, z in ((-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1),
+                                (-1, -1, 1), (1, -1, 1), (1, 1, 1), (-1, 1, 1))]
+    mesh = bpy.data.meshes.new(domain_name)
+    mesh.from_pydata(vertices, [], ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4),
+                                    (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)))
+    mesh.update()
+    obj = bpy.data.objects.new(domain_name, mesh)
+    scene.collection.objects.link(obj)
+    obj.location = center
+    mod = obj.modifiers.new(req["modifier_name"], "FLUID")
+    mod.fluid_type = "DOMAIN"
+    settings = mod.domain_settings
+    kind = _DOMAIN_TYPES[req["preset_id"]]
+    settings.domain_type = kind
+    settings.cache_type = cache_type
+    settings.cache_frame_end, settings.cache_frame_start = end, start
+    settings.cache_data_format = "OPENVDB"
+    settings.cache_resumable = cache_type == "MODULAR"
+    settings.use_mesh = kind == "LIQUID"
+    settings.use_adaptive_domain = False
+    root, _ = _root(req)
+    _redirect(settings, root / f"scaffold-{uuid.uuid4().hex}")
+    for source in flows:
+        flow = _add_role(source, "FLOW").flow_settings
+        flow.flow_type = "LIQUID" if kind == "LIQUID" else "SMOKE"
+        flow.flow_behavior = "INFLOW"
+        source.hide_render = True
+    for source in effectors:
+        _add_role(source, "EFFECTOR").effector_settings.effector_type = "COLLISION"
+    settings.fluid_group = _new_role_group(domain_name, "Inflow", flows)
+    settings.effector_group = _new_role_group(domain_name, "Collision", effectors)
+    if req.get("force_field_objects") is not None:
+        settings.effector_weights.collection = _new_role_group(domain_name, "Forces", forces)
+    _apply_solver_edits(settings, req["native_settings"])
+    bpy.context.view_layer.update()
+    return obj
 
 
 def resolve_domain(obj, req):
@@ -133,13 +235,39 @@ def _animation(obj, settings):
     return curves, channels
 
 
-def _object_payload(obj, role_modifier, settings):
+def _rig_geometry(obj, role_modifier, start, end):
+    scene = bpy.context.scene
+    before = scene.frame_current, scene.frame_subframe
+    raw = hashlib.sha256()
+    visibility = [(mod, mod.show_viewport) for mod in list(obj.modifiers)[obj.modifiers.find(role_modifier.name):]]
+    try:
+        for mod, _ in visibility:
+            mod.show_viewport = False
+        for frame in range(start, end + 1):
+            scene.frame_set(frame)
+            graph = bpy.context.evaluated_depsgraph_get()
+            evaluated = obj.evaluated_get(graph)
+            mesh = evaluated.data
+            raw.update(struct.pack("<II", frame, len(mesh.vertices)))
+            for vertex in mesh.vertices:
+                raw.update(struct.pack("<3f", *(evaluated.matrix_world @ vertex.co)))
+            for polygon in mesh.polygons:
+                raw.update(struct.pack(f"<{len(polygon.vertices) + 1}I", len(polygon.vertices), *polygon.vertices))
+    finally:
+        for mod, shown in visibility:
+            mod.show_viewport = shown
+        scene.frame_set(before[0], subframe=before[1])
+    return raw.hexdigest()
+
+
+def _object_payload(obj, role_modifier, settings, frame_range=None):
     if obj.type != "MESH" or obj.data.shape_keys or obj.constraints or obj.rigid_body:
         _fail("NATIVE_FLUID_DEPENDENCY", f"Use a static mesh or keyframed transform for fluid input '{obj.name}'.")
     if obj.data.animation_data:
         _fail("NATIVE_FLUID_DEPENDENCY", f"Mesh animation on '{obj.name}' requires a separate bake.")
     parent_reasons = animation_identity.static_parent_reasons(obj)
-    if parent_reasons:
+    has_armature = any(mod.type == "ARMATURE" and mod.show_viewport for mod in obj.modifiers)
+    if parent_reasons and not has_armature:
         _fail("NATIVE_FLUID_DEPENDENCY", f"Unsupported fluid parent on '{obj.name}': {', '.join(parent_reasons)}")
     curves, animated = _animation(obj, settings)
     static_transform = {
@@ -157,9 +285,9 @@ def _object_payload(obj, role_modifier, settings):
         if mod.type not in _SUPPORTED_MESH_MODIFIERS:
             _fail("NATIVE_FLUID_DEPENDENCY", f"Apply or isolate the '{mod.type}' modifier on fluid input '{obj.name}'.")
         modifiers.append({"name": mod.name, "type": mod.type, "rna": _scalar_payload(mod, "", set())})
-    return {
+    payload = {
         "object": obj.name, "modifier": role_modifier.name, "mesh_sha256": identity.base_geometry_sha256(obj),
-        "parents": animation_identity.static_parent_chain_payload(obj),
+        "parents": None if has_armature else animation_identity.static_parent_chain_payload(obj),
         "matrix_parent_inverse": obj.matrix_parent_inverse, "rotation_mode": obj.rotation_mode,
         "transform": static_transform, "animation": curves, "modifiers": modifiers,
         "enabled": (role_modifier.show_viewport, role_modifier.show_render, obj.hide_viewport),
@@ -167,6 +295,11 @@ def _object_payload(obj, role_modifier, settings):
                                     domain=role_modifier.fluid_type == "DOMAIN",
                                     ignore=("name",)),
     }
+    if has_armature:
+        if frame_range is None or not any(item["type"] == "ARMATURE" for item in modifiers):
+            _fail("NATIVE_FLUID_DEPENDENCY", f"Place the Armature before the Fluid modifier on '{obj.name}'.")
+        payload["skinned_sequence_sha256"] = _rig_geometry(obj, role_modifier, *frame_range)
+    return payload
 
 
 def _dependency_payload(obj, mod, settings, req):
@@ -200,7 +333,8 @@ def _dependency_payload(obj, mod, settings, req):
                         _fail("NATIVE_FLUID_DEPENDENCY", f"Use a mesh flow source without texture on '{source.name}'.")
                 else:
                     source_settings = source_mod.effector_settings
-                results.append(_object_payload(source, source_mod, source_settings))
+                results.append(_object_payload(source, source_mod, source_settings,
+                                               (settings.cache_frame_start, settings.cache_frame_end)))
     if not flows or not any(source["settings"].get("flow_behavior") != "OUTFLOW" for source in flows):
         _fail("NATIVE_FLUID_FLOW", "No compatible mesh inflow or volume source was found for this domain.")
     collider_name = req.get("collider_object")
@@ -211,10 +345,16 @@ def _dependency_payload(obj, mod, settings, req):
         _fail("NATIVE_FLUID_COLLIDER", "Requested collider collection must match the domain's native effector collection.")
     weights = settings.effector_weights
     field_pool = weights.collection.all_objects if weights.collection else scene.objects
-    for field in field_pool:
-        if field.field and field.field.type != "NONE":
-            _fail("NATIVE_FLUID_DEPENDENCY", f"Native force field '{field.name}' requires separate dependency verification.")
-    return {
+    fields = []
+    for field in sorted(field_pool, key=lambda item: item.name):
+        if not field.field or field.field.type == "NONE":
+            continue
+        if (field.field.type not in {"WIND", "TURBULENCE", "VORTEX"} or field.parent or field.constraints
+                or (field.animation_data and (field.animation_data.action or field.animation_data.nla_tracks
+                                              or field.animation_data.drivers))):
+            _fail("NATIVE_FLUID_DEPENDENCY", f"Use static Wind, Turbulence or Vortex fields: '{field.name}'.")
+        fields.append({"object": field.name, "matrix": field.matrix_world, "settings": _scalar_payload(field.field, "", set())})
+    payload = {
         "schema": SCHEMA, "host": (bpy.app.version_string, bpy.app.build_hash.decode()),
         "scene": scene.name, "gravity": scene.gravity, "use_gravity": scene.use_gravity,
         "fps": scene.render.fps, "fps_base": scene.render.fps_base,
@@ -225,13 +365,31 @@ def _dependency_payload(obj, mod, settings, req):
         "force_group": weights.collection.name if weights.collection else None,
         "flows": flows, "effectors": effectors,
     }
+    if fields:
+        payload["force_fields"] = fields
+    return payload
 
 
 def _dependencies(obj, mod, settings, req):
     payload = _dependency_payload(obj, mod, settings, req)
     digest = hashlib.sha256(identity.canonical_json(payload).encode("utf-8")).hexdigest()
     return {"sha256": digest, "flows": [item["object"] for item in payload["flows"]],
-            "effectors": [item["object"] for item in payload["effectors"]]}
+            "effectors": [item["object"] for item in payload["effectors"]],
+            "force_fields": [item["object"] for item in payload.get("force_fields", ())]}
+
+
+def _align_skinned_roles(domain, settings):
+    scene = bpy.context.scene
+    for role, group in (("FLOW", settings.fluid_group), ("EFFECTOR", settings.effector_group)):
+        pool = group.all_objects if group else scene.objects
+        for obj in pool:
+            if obj == domain or not any(item.type == "ARMATURE" and item.show_viewport for item in obj.modifiers):
+                continue
+            for modifier in tuple(obj.modifiers):
+                if modifier.type == "FLUID" and modifier.fluid_type == role and modifier.show_viewport:
+                    if obj.library:
+                        _fail("NATIVE_FLUID_DEPENDENCY", f"Use a local skinned collision or emitter proxy for '{obj.name}'.")
+                    bridge.reorder_after_deformation(obj, modifier)
 
 
 def _read_json(path):
@@ -330,8 +488,8 @@ def _require_editable(obj, settings):
 
 def _preflight_write(obj, mod, settings, req):
     _require_editable(obj, settings)
-    if settings.cache_type != "ALL":
-        _fail("NATIVE_FLUID_CACHE_TYPE", "Managed native baking currently requires Blender's All cache type.")
+    if settings.cache_type not in {"ALL", "MODULAR"}:
+        _fail("NATIVE_FLUID_CACHE_TYPE", "Set the native cache type to All or Modular.")
     if settings.cache_frame_offset != 0:
         _fail("NATIVE_FLUID_CACHE_RANGE", "Set native cache frame offset to 0 before managed baking.")
     if settings.domain_type == "LIQUID" and not settings.use_mesh:
@@ -510,6 +668,7 @@ def _describe(obj, mod, settings, req):
     try:
         signature = _dependencies(obj, mod, settings, req)
         result.update(flows=signature["flows"], effectors=signature["effectors"])
+        result["force_fields"] = signature["force_fields"]
     except NativeFluidError as exc:
         result["dependency_error"] = {"code": exc.code, "message": exc.message}
     if state and state.get("commit"):
@@ -548,13 +707,55 @@ def _cache_progress(settings):
     return {name: getattr(settings, name) for name in (*_BAKED_FLAGS, *_PAUSE_FRAMES)}
 
 
+def _apply_solver_edits(settings, edits):
+    changes = dict(edits)
+    if "viscosity" in changes:
+        viscosity = changes.pop("viscosity")
+        changes.update(viscosity_value=viscosity, use_viscosity=bool(viscosity))
+    if changes.get("timesteps_min", settings.timesteps_min) > changes.get("timesteps_max", settings.timesteps_max):
+        _fail("NATIVE_FLUID_PARAMETERS", "Minimum time steps cannot exceed the maximum.")
+    for key, value in changes.items():
+        setattr(settings, key, value)
+    rejected = [key for key, value in changes.items() if
+                (abs(getattr(settings, key) - value) > 1e-6 if isinstance(value, float) else getattr(settings, key) != value)]
+    if rejected:
+        _fail("NATIVE_FLUID_PARAMETERS", f"Blender rejected settings: {', '.join(rejected)}.")
+
+
+def _native_operator(name):
+    operator = getattr(bpy.ops.fluid, name)
+    if not operator.poll() or operator("EXEC_DEFAULT") != {"FINISHED"}:
+        _fail("NATIVE_FLUID_BAKE", f"Blender did not finish native fluid {name}.")
+
+
+def _copy_modular_data(previous_cache, cache, manifest):
+    for row in manifest["frames"].values():
+        for item in row["files"]:
+            if item["path"].split("/", 1)[0] not in {"config", "data"}:
+                continue
+            source = previous_cache / item["path"]
+            target = cache / item["path"]
+            if _record_file(source, previous_cache) != item:
+                _fail("NATIVE_FLUID_CACHE_STALE", f"Original Data file differs: {source.name}.")
+            target.parent.mkdir(exist_ok=True)
+            shutil.copyfile(source, target)
+
+
 def _bake(obj, mod, settings, req):
     previous = _preflight_write(obj, mod, settings, req)
+    reuse = req.get("reuse_data", False)
+    reusable = None
+    if reuse:
+        if settings.cache_type != "MODULAR" or not settings.cache_resumable:
+            _fail("NATIVE_FLUID_CACHE_TYPE", "Data reuse requires resumable Modular caching.")
+        _validated_sequence(obj, mod, settings, req, settings.cache_frame_start, settings.cache_frame_end, None)
+        reusable = _committed(obj, mod, settings, previous)
+    else:
+        _align_skinned_roles(obj, settings)
     root, blend = _root(req)
     source_state = previous if previous and previous["owner_blend"] == str(blend) else _new_state(obj, mod, blend)
     if previous and previous.get("retained"):
         source_state = {**source_state, "retained": previous["retained"]}
-    signature = _dependencies(obj, mod, settings, req)
     generation = uuid.uuid4().hex
     transaction = root / f"txn-{generation}"
     cache = transaction / "cache"
@@ -572,6 +773,9 @@ def _bake(obj, mod, settings, req):
     view_layer = context.view_layer
     before_path = settings.cache_directory
     before_flags = _cache_progress(settings)
+    previous_edits = {name: getattr(settings, name) for name in req["native_settings"] if name != "viscosity"}
+    if "viscosity" in req["native_settings"]:
+        previous_edits.update(viscosity_value=settings.viscosity_value, use_viscosity=settings.use_viscosity)
     before_frame = scene.frame_current
     before_subframe = scene.frame_subframe
     before_active = view_layer.objects.active
@@ -579,6 +783,7 @@ def _bake(obj, mod, settings, req):
     started = perf_counter()
     try:
         _redirect(settings, cache)
+        _apply_solver_edits(settings, req["native_settings"])
         # Native Bake All uses the pause counter even if the baked flags have
         # been cleared. A new generation always starts at cache_frame_start.
         _set_flags(settings, dict.fromkeys(_PAUSE_FRAMES, 0))
@@ -586,23 +791,37 @@ def _bake(obj, mod, settings, req):
         obj.select_set(True)
         with context.temp_override(object=obj, active_object=obj, selected_objects=[obj],
                                    selected_editable_objects=[obj]):
-            if settings.has_cache_baked_data or settings.has_cache_baked_mesh:
+            if settings.cache_type == "ALL" and (settings.has_cache_baked_data or settings.has_cache_baked_mesh):
                 # Blender 5.3 carries baked flags across cache-directory changes.
                 # Clear these only while pointed at the new, empty owned generation.
                 if any(cache.iterdir()) or not bpy.ops.fluid.free_all.poll():
                     _fail("NATIVE_FLUID_BAKE", "Native bake flags cannot be reset in the newly owned cache.")
                 if bpy.ops.fluid.free_all("EXEC_DEFAULT") != {"FINISHED"} or _native_path(settings) != cache:
                     _fail("NATIVE_FLUID_BAKE", "Blender failed to reset native bake flags.")
+            _set_flags(settings, dict.fromkeys(_BAKED_FLAGS, False))
+            if reusable:
+                _copy_modular_data(reusable[0], cache, reusable[1])
+                settings.has_cache_baked_data = True
+                settings.cache_frame_pause_data = settings.cache_frame_end
             scene.frame_set(settings.cache_frame_start)
-            if not bpy.ops.fluid.bake_all.poll() or bpy.ops.fluid.bake_all("EXEC_DEFAULT") != {"FINISHED"}:
-                _fail("NATIVE_FLUID_BAKE", "Blender did not complete the native Bake All operation.")
+            signature = _dependencies(obj, mod, settings, req)
+            if settings.cache_type == "ALL":
+                _native_operator("bake_all")
+            else:
+                if not reuse:
+                    _native_operator("bake_data")
+                if settings.domain_type == "LIQUID":
+                    _native_operator("bake_mesh")
+                elif settings.use_noise:
+                    _native_operator("bake_noise")
         if not settings.has_cache_baked_data or (settings.domain_type == "LIQUID" and not settings.has_cache_baked_mesh):
             _fail("NATIVE_FLUID_BAKE", "Blender did not mark the expected native cache components as baked.")
         frames = _frame_files(cache, settings)
         if _dependencies(obj, mod, settings, req)["sha256"] != signature["sha256"]:
             _fail("NATIVE_FLUID_CACHE_STALE", "Native fluid dependencies changed while baking.")
-        archive = transaction / "archive"
-        archive_info = _archive_files(cache, archive, frames)
+        archive_mode = req.get("archive_mode") or ("copy" if settings.cache_type == "ALL" else "none")
+        archive = transaction / "archive" if archive_mode == "copy" else None
+        archive_info = _archive_files(cache, archive, frames) if archive else None
         manifest = transaction / "manifest.json"
         _atomic_write_json(manifest, {"owner": owner, "dependency_sha256": signature["sha256"],
                                       "frames": frames, "archive": archive_info})
@@ -611,6 +830,8 @@ def _bake(obj, mod, settings, req):
                  "detached": False}
         _save_state(obj, state)
     except Exception as exc:
+        for name, value in previous_edits.items():
+            setattr(settings, name, value)
         settings.cache_directory = before_path
         _set_flags(settings, before_flags)
         if isinstance(exc, NativeFluidError):
@@ -620,8 +841,9 @@ def _bake(obj, mod, settings, req):
         view_layer.objects.active = before_active
         obj.select_set(before_selected)
         scene.frame_set(before_frame, subframe=before_subframe)
-    return {"cache_directory": str(cache), "archive_directory": str(archive),
-            "archive_bytes": archive_info["bytes"], "generation": generation, "manifest_sha256": manifest_hash,
+    return {"cache_directory": str(cache), "archive_directory": str(archive) if archive else None,
+            "archive_bytes": archive_info["bytes"] if archive_info else 0, "data_reused": reuse,
+            "generation": generation, "manifest_sha256": manifest_hash,
             "duration_seconds": perf_counter() - started, "frames": len(frames), "saved": False}
 
 
@@ -632,6 +854,9 @@ def _retune(obj, mod, settings, req):
     _dependencies(obj, mod, settings, prior_request)
     edits = {**req.get("native_settings", {}), "cache_frame_start": req["parameters"]["frame_start"],
              "cache_frame_end": req["parameters"]["frame_end"]}
+    if "viscosity" in edits:
+        viscosity = edits.pop("viscosity")
+        edits.update(viscosity_value=viscosity, use_viscosity=bool(viscosity))
     if edits.get("timesteps_min", settings.timesteps_min) > edits.get("timesteps_max", settings.timesteps_max):
         _fail("NATIVE_FLUID_PARAMETERS", "Minimum time steps cannot exceed the maximum")
     saved = {name: getattr(settings, name) for name in edits}
@@ -698,6 +923,7 @@ def execute(obj, req):
         return _retune(obj, mod, settings, req)
     if op in {"build", "adopt", "update"}:
         state = _preflight_write(obj, mod, settings, req)
+        _align_skinned_roles(obj, settings)
         _dependencies(obj, mod, settings, req)
         _, blend = _root(req)
         if not state:

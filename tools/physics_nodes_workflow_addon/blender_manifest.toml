@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "physics_nodes_workflow_addon"
-version = "0.9.0-dev.2"
-name = "Physics Nodes Workbench"
-tagline = "Modular Geometry Nodes physics workbench, disk bake & CLI"
+version = "1.0.0-rc.1"
+name = "物理模拟工作台"
+tagline = "几何节点物理、布料、破碎与原生流体"
 maintainer = "Blender AI Pipeline"
 type = "add-on"
 

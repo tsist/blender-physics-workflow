@@ -93,6 +93,10 @@ def verify(root: Path = ROOT) -> dict:
         path = safe_file(root, name)
         if path.suffix.lower() in {".pyc", ".blend", ".blend1", ".exe", ".dll"} or path.name in {"AGENTS.md", ".env", "secrets.json"}:
             raise ValueError("Forbidden release file: " + name)
+        if path.suffix.lower() == ".png":
+            if path.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+                raise ValueError("Invalid PNG: " + name)
+            continue
         text = path.read_text(encoding="utf-8-sig")
         if private_findings(text):
             raise ValueError("Private content pattern in: " + name)

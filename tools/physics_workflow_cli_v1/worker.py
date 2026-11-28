@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import traceback
 from typing import Any
 
@@ -92,6 +93,19 @@ def _collect_evidence(normalized: dict[str, Any], target_object: str) -> dict[st
         }
 
 
+def _needs_cache_working_copy(request, bake_module):
+    """An owned cache may be invalidated or superseded by a parameter edit or rebake."""
+    if request["operation"] not in {"build", "update", "parameters", "adopt", "bake"}:
+        return False
+    obj = bpy.data.objects.get(request["target_object"]) if request["target_object"] else bpy.context.active_object
+    modifier = obj.modifiers.get(request["modifier_name"]) if obj else None
+    if modifier is None or modifier.type != "NODES" or not bake_module._current_workflow_binding(obj, modifier):
+        return False
+    state = json.loads(obj.get("pnw_state_json__" + modifier.name, "{}"))
+    return (request["operation"] == "bake" or request.get("bake") or request.get("force_rebuild")
+            or state.get("parameters_hash") != request["parameters_hash"])
+
+
 def main() -> int:
     try:
         args = _read_args()
@@ -107,6 +121,7 @@ def main() -> int:
         "error": _error("EXECUTION_ERROR", "Worker did not execute"),
     }
     normalized: dict[str, Any] | None = None
+    cache_copy = None
 
     try:
         payload = json.loads(req_path.read_text(encoding="utf-8"))
@@ -153,9 +168,25 @@ def main() -> int:
         if "FINISHED" not in opened:
             raise RuntimeError(f"Blender could not open input blend: {opened}")
 
+        if _needs_cache_working_copy(normalized, pnw.pnw_bake):
+            # The native owner includes the saved project path. Run a write
+            # from a genuine separate project so the input's cache stays usable.
+            cache_copy = tempfile.TemporaryDirectory(prefix="physics-copy-", dir=req_path.parent)
+            copy_file = Path(cache_copy.name) / "working.blend"
+            if bpy.ops.wm.save_as_mainfile(filepath=str(copy_file), relative_remap=True) != {"FINISHED"}:
+                raise RuntimeError("Could not isolate the input project's owned cache")
         execution = pnw.execute_request(normalized)
         if not isinstance(execution, dict):
             raise RuntimeError("Addon execute_request returned a non-object result")
+        if normalized["operation"] == "invalidate_cache" and execution.get("ok"):
+            invalidation = execution.get("invalidate") or {}
+            if not invalidation.get("invalidated"):
+                execution["ok"] = False
+                execution["error"] = _error(
+                    "CACHE_INVALIDATION_REFUSED",
+                    str(invalidation.get("reason") or "Cache was not invalidated"),
+                    invalidate=invalidation,
+                )
         result = execution
         result.setdefault("worker_version", "2.0")
         result["normalized_request"] = _normalized_report(normalized)
@@ -193,6 +224,9 @@ def main() -> int:
                 traceback=traceback.format_exc()[-6000:],
             ),
         }
+    finally:
+        if cache_copy is not None:
+            cache_copy.cleanup()
 
     if normalized is not None:
         result.setdefault("normalized_request", _normalized_report(normalized))

@@ -4,7 +4,7 @@
 
 ## 1. 求解域与预设速查
 
-下表列出几何节点预设，独立 CLI 通过 `GN_NATIVE` 执行。Blender 5.3 液体和气体域另见[原生流体面板](native-fluid.md)。
+本页的刚体、布料和粒子预设使用 `GN_NATIVE`。旧几何节点面板中的 `BULLET_BRIDGE`、`XPBD_ASSET_BRIDGE`、`MANTAFLOW_BRIDGE` 选项仍属于旧契约的预留接口。Blender 5.3 的原生域从 `native_liquid` 或 `native_gas` 预设和 **Native Fluid** 面板进入。[原生流体设置](native-fluid.md)
 
 | 求解域 | 预设 ID | 适用行为 | 使用要点 |
 | --- | --- | --- | --- |
@@ -42,8 +42,35 @@
 - **切换域或重建**：跨预设切换求解域时，先检查图里有没有手改节点，再在工作副本上跑 `build` + `force_rebuild: true`，新建替代图并保留旧 Wrapper。切到 `rigid_box_tipping` 时，界面会自动忽略其它预设留下的碰撞体、实例集合、散点或 Y 重力，原值留着切回时用；CLI 请求只填当前预设支持的参数。
 - **碰撞体动画**：单体和集合里的普通网格碰撞体支持 `location`、`rotation_euler`、`rotation_quaternion`、`scale` 关键帧动画。签名覆盖真实绑定的 Action slot/channelbag、曲线控制点、手柄、插值与静态父级，保持帧与选区干净。NLA、驱动器、约束、形态键或目标自身动画先烘焙成普通关键帧网格再接入。
 
-## 4. 固定点和面板交接
+## 4. 固定点操作（`physics pin-selection`）
 
-布料和绳索用显式 POINT/FLOAT 属性 pnw_pinned 固定顶点。局部工作对象的网格应为单用户。选中顶点，在 **Physics Nodes** 面板使用 **Pin Selected** 或 **Unpin Selected**，存盘后让独立 CLI 从该工作副本读取属性。曲线需在重采样后复查实际固定点。
+布料和绳索只在有显式 `POINT/FLOAT` 属性 `pnw_pinned` 时固定顶点，固定点以原生质量 `0` 参与约束，其余点保留已有质量（缺省为 `1`）。无固定点时布料按自由落体计算。
 
-接手面板时，先另存工程并打开 **Build on Working Copy**。普通 **Build / Update** 复用工作对象并保留作者节点编辑。界面 **Bake to Disk** 先应用当前面板设置再烘焙。如果作者手动断开 Core 输入，检查实际节点连线与缓存身份。切换预设前留一个保存点，必要时显式 **Rebuild**。
+查看命令行参数：
+
+```powershell
+& './blenderctl.ps1' physics pin-selection --help
+```
+
+JSON 参数字段包含：`file`、`expected_sha256`、`scene`、`view_layer`、`object`、`operation`。
+
+- 只读查询现有固定点：`operation` 填 `inspect`，省略 `vertices` 和 `--output`。
+- 写入或解除固定点：`operation` 填 `pin` 或 `unpin`，在 `vertices` 里给出去重后的零基顶点索引列表，并指定全新的 `--output` `.blend` 路径。物体模式会自动隔离共享网格数据，编辑模式直接写入单用户活动网格。
+
+## 5. 面板工作副本交接（`physics panel-copy`）
+
+需要在 Blender 界面里手调参数、点 **Bake to Disk** 或把草稿交回 CLI 时，用 `physics panel-copy` 生成带面板身份的候选 `.blend`：
+
+```powershell
+& './blenderctl.ps1' physics panel-copy --help
+```
+
+常用 `operation`：
+
+- `inspect`：只读查看当前保存的面板草稿。
+- `build`：遵循原生 `protect_source` 规则，复用已标记的工作对象。
+- `copy`：新建一份原生工作副本。
+- `reset-preset`：重置预设草稿参数（可选传 `preset_id`），等下次构建再生效。
+- `set-bridge-mode`：只保存求解器下拉项（可用 `GN_NATIVE`）。
+
+`build` 和 `copy` 可带入 `preset_id`、`modifier_name`、`protect_source`、`bridge_mode`、`collider_object`、`collider_collection`、`instance_collection` 与 `parameters`，写入操作指定新 `--output` `.blend`。界面点 **Bake to Disk** 会先应用当前面板参数再烘焙；如果作者在节点图里手动断开了 Core 输入，复查时直接看节点图和缓存身份，以实际求值输入为准。
